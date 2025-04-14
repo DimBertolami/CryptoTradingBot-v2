@@ -10,18 +10,23 @@ import {
 } from '@mui/material';
 import { useQuery } from 'react-query';
 import { fetchStatus } from '../api/status';
+import TimeIntervalSelector from '../components/TimeIntervalSelector';
+import { useAppSelector } from '../app/hooks';
 
 const Dashboard: React.FC = () => {
-  const { data: backendStatus, isLoading: isBackendLoading } = useQuery('backendStatus', () =>
-    fetchStatus('/api/v1/status/backend')
+  const selectedInterval = useAppSelector((state) => state.timeInterval.interval);
+  const { data: backendStatus, isLoading: isBackendLoading } = useQuery(
+    'backendStatus',
+    () => fetchStatus('/api/v1/status/backend')
   );
 
-  const { data: tradingStatus, isLoading: isTradingLoading } = useQuery('tradingStatus', () =>
-    fetchStatus('/api/v1/status/trading')
+  const { data: tradingStatus, isLoading: isTradingLoading } = useQuery(
+    'tradingStatus',
+    () => fetchStatus('/api/v1/status/trading')
   );
 
   const getStatusColor = (status: string) => {
-    switch (status) { 
+    switch (status) {
       case 'active':
         return 'success.main';
       case 'inactive':
@@ -39,6 +44,7 @@ const Dashboard: React.FC = () => {
         <Typography variant="h4" component="h1" gutterBottom>
           Trading Bot Dashboard
         </Typography>
+        <TimeIntervalSelector />
       </Grid>
 
       <Grid item xs={12} md={4}>
@@ -92,7 +98,7 @@ const Dashboard: React.FC = () => {
       <Grid item xs={12}>
         <Paper sx={{ p: 2 }}>
           <Typography variant="h6" gutterBottom>
-            Recent Activity
+            Recent Activity ({selectedInterval})
           </Typography>
           <Box sx={{ height: 300 }}>
             {/* Chart will be implemented later */}
