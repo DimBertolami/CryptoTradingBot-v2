@@ -16,6 +16,7 @@ import {
   DialogActions,
   TextField,
   Slider,
+  Alert,
 } from '@mui/material';
 import {
   ArrowLeft,
@@ -32,6 +33,7 @@ import {
 } from '@mui/icons-material';
 import PriceChart from './PriceChart';
 import MarketCapChart from './MarketCapChart';
+import TradingAnalysis from './TradingAnalysis';
 import { useInterval } from 'usehooks-ts';
 
 interface ChartCarouselProps {
@@ -46,6 +48,10 @@ const ChartCarousel: React.FC<ChartCarouselProps> = ({ assets, onAssetChange }) 
   const [updateInterval, setUpdateInterval] = useState(5000); // 5 seconds default
   const [showSettings, setShowSettings] = useState(false);
   const [showHelp, setShowHelp] = useState(false);
+  const [showAnalysis, setShowAnalysis] = useState(false);
+  const [tradingSignal, setTradingSignal] = useState<string>('NEUTRAL');
+  const [marketCondition, setMarketCondition] = useState<string>('NEUTRAL');
+  const [riskLevel, setRiskLevel] = useState<string>('MODERATE');
 
   // Update selected asset when it changes from parent
   useEffect(() => {
@@ -76,16 +82,30 @@ const ChartCarousel: React.FC<ChartCarouselProps> = ({ assets, onAssetChange }) 
     switch (activeTab) {
       case 0:
         return (
-          <PriceChart
-            assets={assets}
-            onAssetChange={handleAssetChange}
-          />
+          <Box>
+            <PriceChart
+              assets={assets}
+              onAssetChange={handleAssetChange}
+            />
+            <TradingAnalysis
+              asset={selectedAsset}
+              priceData={selectedAsset.priceData}
+              orderBook={selectedAsset.orderBook}
+            />
+          </Box>
         );
       case 1:
         return (
-          <MarketCapChart
-            assets={assets}
-          />
+          <Box>
+            <MarketCapChart
+              assets={assets}
+            />
+            <TradingAnalysis
+              asset={selectedAsset}
+              priceData={selectedAsset.priceData}
+              orderBook={selectedAsset.orderBook}
+            />
+          </Box>
         );
       default:
         return null;
@@ -113,6 +133,25 @@ const ChartCarousel: React.FC<ChartCarouselProps> = ({ assets, onAssetChange }) 
             label="Market Cap & Orders"
           />
         </Tabs>
+      </Box>
+
+      {/* Trading Signal Banner */}
+      <Box sx={{ p: 2 }}>
+        <Chip
+          label={tradingSignal.replace('_', ' ')}
+          color={tradingSignal === 'STRONG_BUY' || tradingSignal === 'BUY' ? 'success' :
+                 tradingSignal === 'STRONG_SELL' || tradingSignal === 'SELL' ? 'error' :
+                 'warning'}
+          sx={{
+            position: 'fixed',
+            top: 64,
+            right: 16,
+            zIndex: 1000,
+            fontSize: '1.2rem',
+            fontWeight: 'bold',
+            padding: '8px 16px',
+          }}
+        />
       </Box>
 
       {/* Chart Content */}
@@ -157,6 +196,14 @@ const ChartCarousel: React.FC<ChartCarouselProps> = ({ assets, onAssetChange }) 
               size="small"
             >
               <Refresh />
+            </IconButton>
+          </MuiTooltip>
+          <MuiTooltip title="Show Analysis">
+            <IconButton
+              onClick={() => setShowAnalysis(!showAnalysis)}
+              size="small"
+            >
+              <Info />
             </IconButton>
           </MuiTooltip>
           <MuiTooltip title="Settings">
@@ -215,46 +262,122 @@ const ChartCarousel: React.FC<ChartCarouselProps> = ({ assets, onAssetChange }) 
 
       {/* Help Dialog */}
       <Dialog open={showHelp} onClose={() => setShowHelp(false)} maxWidth="md">
-        <DialogTitle>Chart Usage Guide</DialogTitle>
+        <DialogTitle>Trading Analysis Guide</DialogTitle>
         <DialogContent>
           <Stack spacing={3}>
-            <Typography variant="h6">Price Analysis Chart</Typography>
-            <Typography>
-              The price chart displays technical indicators with customizable settings. Use the controls at the top to:
-              <ul>
-                <li>Switch between different assets</li>
-                <li>Toggle technical indicators</li>
-                <li>Adjust zoom level</li>
-              </ul>
-            </Typography>
+            <Typography variant="h6">Trading Signals</Typography>
+            <Stack spacing={2}>
+              <Alert severity="success">
+                <strong>STRONG_BUY:</strong> High-confidence buy signal based on multiple converging indicators.
+              </Alert>
+              <Alert severity="info">
+                <strong>BUY:</strong> Moderate buy signal based on technical indicators.
+              </Alert>
+              <Alert severity="warning">
+                <strong>HOLD:</strong> Market is consolidating. No clear trend direction.
+              </Alert>
+              <Alert severity="error">
+                <strong>SELL:</strong> Moderate sell signal based on technical indicators.
+              </Alert>
+              <Alert severity="error">
+                <strong>STRONG_SELL:</strong> High-confidence sell signal based on multiple converging indicators.
+              </Alert>
+            </Stack>
 
-            <Typography variant="h6">Market Cap & Orders Chart</Typography>
-            <Typography>
-              The market cap chart shows:
-              <ul>
-                <li>Market capitalization distribution</li>
-                <li>Buy/sell order depth</li>
-                <li>Investment thresholds based on market cap</li>
-                <li>Real-time updates of order book</li>
-              </ul>
-            </Typography>
+            <Typography variant="h6">Market Conditions</Typography>
+            <Stack spacing={2}>
+              <Alert severity="success">
+                <strong>BULLISH:</strong> Strong upward trend with positive momentum.
+              </Alert>
+              <Alert severity="info">
+                <strong>BULLISH_PULLBACK:</strong> Pullback in an overall bullish trend (buying opportunity).
+              </Alert>
+              <Alert severity="warning">
+                <strong>NEUTRAL:</strong> Market consolidation with no clear direction.
+              </Alert>
+              <Alert severity="error">
+                <strong>BEARISH_PULLBACK:</strong> Pullback in an overall bearish trend (shorting opportunity).
+              </Alert>
+              <Alert severity="error">
+                <strong>BEARISH:</strong> Strong downward trend with negative momentum.
+              </Alert>
+            </Stack>
 
-            <Typography variant="h6">Investment Thresholds</Typography>
-            <Typography>
-              The minimum investment thresholds are calculated based on market cap:
-              <ul>
-                <li>$100B+ cap: ≥ $100,000 investment</li>
-                <li>$10B-$100B: ≥ $50,000</li>
-                <li>$1B-$10B: ≥ $10,000</li>
-                <li>$100M-$1B: ≥ $5,000</li>
-                <li>$10M-$100M: ≥ $1,000</li>
-                <li>< $10M: ≥ $500</li>
-              </ul>
-            </Typography>
+            <Typography variant="h6">Risk Levels</Typography>
+            <Stack spacing={2}>
+              <Alert severity="success">
+                <strong>LOW RISK:</strong> Multiple safety measures in place. Good entry points available.
+              </Alert>
+              <Alert severity="warning">
+                <strong>MODERATE RISK:</strong> Some caution advised. Standard risk management required.
+              </Alert>
+              <Alert severity="error">
+                <strong>HIGH RISK:</strong> Extra caution required. Wide stop-losses needed.
+              </Alert>
+            </Stack>
           </Stack>
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setShowHelp(false)}>Close</Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Analysis Dialog */}
+      <Dialog open={showAnalysis} onClose={() => setShowAnalysis(false)} maxWidth="md">
+        <DialogTitle>Trading Analysis</DialogTitle>
+        <DialogContent>
+          <Stack spacing={3}>
+            <Typography variant="h6">Current Market Status</Typography>
+            <Stack spacing={2}>
+              <Chip
+                label={tradingSignal.replace('_', ' ')}
+                color={tradingSignal === 'STRONG_BUY' || tradingSignal === 'BUY' ? 'success' :
+                       tradingSignal === 'STRONG_SELL' || tradingSignal === 'SELL' ? 'error' :
+                       'warning'}
+                variant="outlined"
+              />
+              <Chip
+                label={marketCondition.replace('_', ' ')}
+                color={marketCondition === 'BULLISH' ? 'success' :
+                       marketCondition === 'BEARISH' ? 'error' :
+                       marketCondition === 'BULLISH_PULLBACK' ? 'info' :
+                       marketCondition === 'BEARISH_PULLBACK' ? 'warning' :
+                       'warning'}
+                variant="outlined"
+              />
+              <Chip
+                label={riskLevel.replace('_', ' ')}
+                color={riskLevel === 'LOW' ? 'success' :
+                       riskLevel === 'MODERATE' ? 'warning' :
+                       'error'}
+                variant="outlined"
+              />
+            </Stack>
+
+            <Typography variant="h6">Recommendations</Typography>
+            <Stack spacing={2}>
+              <Alert severity={tradingSignal === 'STRONG_BUY' || tradingSignal === 'BUY' ? 'success' :
+                        tradingSignal === 'STRONG_SELL' || tradingSignal === 'SELL' ? 'error' :
+                        'warning'}>
+                Based on current market conditions, it is recommended to:
+                <ul>
+                  <li style={{ marginBottom: '0.5em' }}>
+                    {tradingSignal === 'STRONG_BUY' || tradingSignal === 'BUY' ? 'Consider buying with a tight stop-loss.' :
+                     tradingSignal === 'STRONG_SELL' || tradingSignal === 'SELL' ? 'Consider selling with a tight stop-loss.' :
+                     'Hold current positions and wait for clearer signals.'}
+                  </li>
+                  <li>
+                    Target price: {tradingSignal === 'STRONG_BUY' || tradingSignal === 'BUY' ? '+10%' :
+                                  tradingSignal === 'STRONG_SELL' || tradingSignal === 'SELL' ? '-10%' :
+                                  'Current price'}
+                  </li>
+                </ul>
+              </Alert>
+            </Stack>
+          </Stack>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setShowAnalysis(false)}>Close</Button>
         </DialogActions>
       </Dialog>
     </Box>
