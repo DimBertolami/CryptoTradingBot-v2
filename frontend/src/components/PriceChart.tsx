@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   LineChart,
   Line,
@@ -20,9 +20,12 @@ import {
   FormGroup,
   FormControlLabel,
   Typography,
+  CircularProgress,
 } from '@mui/material';
 import { ChartData, ChartConfig, CryptoAsset } from '../../types/chart';
 import { useAppSelector } from '../../app/hooks';
+import { coingeckoApi } from '../../services/coingecko';
+import { TimeInterval } from '../../features/timeInterval/timeIntervalSlice';
 
 interface PriceChartProps {
   assets: CryptoAsset[];
@@ -33,13 +36,31 @@ export const PriceChart: React.FC<PriceChartProps> = ({ assets, onAssetChange })
   const selectedAsset = useAppSelector((state) => state.chart.selectedAsset);
   const timeInterval = useAppSelector((state) => state.timeInterval.interval);
   const chartConfig = useAppSelector((state) => state.chart.config);
+  const [chartData, setChartData] = useState<ChartData[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
 
-  // Mock data - replace with actual API call
-  const data: ChartData[] = [
-    { timestamp: 1681411200000, price: 20000, rsi: 70, macd: 10, macdSignal: 5, upperBand: 20500, lowerBand: 19500 },
-    { timestamp: 1681414800000, price: 20500, rsi: 75, macd: 12, macdSignal: 7, upperBand: 21000, lowerBand: 20000 },
-    // Add more data points as needed
-  ];
+  useEffect(() => {
+    const fetchChartData = async () => {
+      if (!selectedAsset.id) return;
+
+      setIsLoading(true);
+      try {
+        const days = 30; // Fetch 30 days of data
+        const data = await coingeckoApi.getHistoricalData(
+          selectedAsset.id,
+          days,
+          timeInterval
+        );
+        setChartData(data);
+      } catch (error) {
+        console.error('Error fetching chart data:', error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchChartData();
+  }, [selectedAsset.id, timeInterval]);
 
   const formatTimestamp = (timestamp: number) => {
     return new Date(timestamp).toLocaleTimeString();
@@ -72,6 +93,14 @@ export const PriceChart: React.FC<PriceChartProps> = ({ assets, onAssetChange })
     }
     return null;
   };
+
+  if (isLoading) {
+    return (
+      <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: 400 }}>
+        <CircularProgress />
+      </Box>
+    );
+  }
 
   return (
     <Box sx={{ p: 2 }}>
@@ -132,7 +161,7 @@ export const PriceChart: React.FC<PriceChartProps> = ({ assets, onAssetChange })
       </Box>
 
       <ResponsiveContainer width="100%" height={400}>
-        <LineChart data={data}>
+        <LineChart data={chartData}>
           <CartesianGrid strokeDasharray="3 3" />
           <XAxis
             dataKey="timestamp"
