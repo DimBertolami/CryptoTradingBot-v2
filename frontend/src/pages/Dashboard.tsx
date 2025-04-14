@@ -11,10 +11,15 @@ import {
 import { useQuery } from 'react-query';
 import { fetchStatus } from '../api/status';
 import TimeIntervalSelector from '../components/TimeIntervalSelector';
-import { useAppSelector } from '../app/hooks';
+import PriceChart from '../components/PriceChart';
+import { useAppDispatch, useAppSelector } from '../app/hooks';
+import { setSelectedAsset } from '../features/chart/chartSlice';
 
 const Dashboard: React.FC = () => {
+  const dispatch = useAppDispatch();
   const selectedInterval = useAppSelector((state) => state.timeInterval.interval);
+  const assets = useAppSelector((state) => state.wallet.assets);
+
   const { data: backendStatus, isLoading: isBackendLoading } = useQuery(
     'backendStatus',
     () => fetchStatus('/api/v1/status/backend')
@@ -36,6 +41,10 @@ const Dashboard: React.FC = () => {
       default:
         return 'grey.500';
     }
+  };
+
+  const handleAssetChange = (asset: CryptoAsset) => {
+    dispatch(setSelectedAsset(asset));
   };
 
   return (
@@ -98,14 +107,9 @@ const Dashboard: React.FC = () => {
       <Grid item xs={12}>
         <Paper sx={{ p: 2 }}>
           <Typography variant="h6" gutterBottom>
-            Recent Activity ({selectedInterval})
+            Price Chart ({selectedInterval})
           </Typography>
-          <Box sx={{ height: 300 }}>
-            {/* Chart will be implemented later */}
-            <Typography variant="body2" color="text.secondary">
-              Trading activity chart will be displayed here
-            </Typography>
-          </Box>
+          <PriceChart assets={assets} onAssetChange={handleAssetChange} />
         </Paper>
       </Grid>
     </Grid>
