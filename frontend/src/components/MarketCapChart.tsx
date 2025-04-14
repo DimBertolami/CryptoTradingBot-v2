@@ -34,6 +34,7 @@ import {
   DialogActions,
   TextField,
   Slider,
+  Alert,
 } from '@mui/material';
 import {
   ArrowUpward,
@@ -45,8 +46,69 @@ import {
   TrendingUp,
   TrendingDown,
   TrendingFlat,
+  Info,
 } from '@mui/icons-material';
 import { useInterval } from 'usehooks-ts';
+
+// Helper function to explain market cap
+const explainMarketCap = (marketCap: number): string => {
+  if (marketCap >= 100000000000) {
+    return `This is a mega-cap asset (${formatNumber(marketCap)}). These assets are highly stable but have lower growth potential.`;
+  } else if (marketCap >= 10000000000) {
+    return `This is a large-cap asset (${formatNumber(marketCap)}). These assets offer a good balance of stability and growth potential.`;
+  } else if (marketCap >= 1000000000) {
+    return `This is a mid-cap asset (${formatNumber(marketCap)}). These assets can offer good growth opportunities with moderate risk.`;
+  } else if (marketCap >= 100000000) {
+    return `This is a small-cap asset (${formatNumber(marketCap)}). These assets can offer high growth potential but come with higher risk.`;
+  } else {
+    return `This is a micro-cap asset (${formatNumber(marketCap)}). These assets are highly volatile and speculative.`;
+  }
+};
+
+// Helper function to explain volume
+const explainVolume = (volume: number, marketCap: number): string => {
+  const volumeRatio = volume / marketCap;
+  if (volumeRatio > 0.01) {
+    return `High trading volume (${formatNumber(volume)}). This indicates high liquidity and active trading.`;
+  } else if (volumeRatio > 0.001) {
+    return `Moderate trading volume (${formatNumber(volume)}). This indicates reasonable liquidity.`;
+  } else {
+    return `Low trading volume (${formatNumber(volume)}). This indicates lower liquidity and potential price manipulation risks.`;
+  }
+};
+
+// Helper function to explain order book
+const explainOrderBook = (buyDepth: number, sellDepth: number, spread: number): string => {
+  const isBuyHeavy = buyDepth > sellDepth;
+  const isStrong = Math.abs(buyDepth - sellDepth) > 1000;
+
+  if (isBuyHeavy && isStrong) {
+    return `Order book is heavily buy-side weighted. This indicates strong buying interest and potential price increase.`;
+  } else if (!isBuyHeavy && isStrong) {
+    return `Order book is heavily sell-side weighted. This indicates strong selling pressure and potential price decrease.`;
+  } else if (spread < 0.01) {
+    return `Very tight spread (${spread.toFixed(4)}). This indicates high liquidity and efficient market.`;
+  } else if (spread < 0.1) {
+    return `Moderate spread (${spread.toFixed(4)}). This indicates reasonable liquidity.`;
+  } else {
+    return `Wide spread (${spread.toFixed(4)}). This indicates lower liquidity and potential price manipulation risks.`;
+  }
+};
+
+// Helper function to explain price change
+const explainPriceChange = (change: number): string => {
+  if (change > 5) {
+    return `Price has increased significantly (${change.toFixed(1)}%). This could be due to positive news or increased demand.`;
+  } else if (change > 1) {
+    return `Price is trending up (${change.toFixed(1)}%). This might be a good time to buy.`;
+  } else if (change < -5) {
+    return `Price has dropped significantly (${Math.abs(change).toFixed(1)}%). This could be due to negative news or increased selling pressure.`;
+  } else if (change < -1) {
+    return `Price is trending down (${Math.abs(change).toFixed(1)}%). Consider holding or selling.`;
+  } else {
+    return `Price is relatively stable (${change.toFixed(1)}%). No significant movement detected.`;
+  }
+};
 
 interface MarketCapData {
   id: string;
@@ -78,6 +140,7 @@ const MarketCapChart: React.FC<MarketCapChartProps> = ({ assets }) => {
   const [loading, setLoading] = useState(false);
   const [investmentThreshold, setInvestmentThreshold] = useState(1000);
   const [orderBookDialogOpen, setOrderBookDialogOpen] = useState(false);
+  const [hoveredAsset, setHoveredAsset] = useState<MarketCapData | null>(null);
 
   // Sort data based on selected field
   useEffect(() => {
@@ -109,6 +172,7 @@ const MarketCapChart: React.FC<MarketCapChartProps> = ({ assets }) => {
         max: 500000,
         label: '≥ $100,000',
         color: '#1976d2',
+        explanation: 'For maximum gains, invest at least $100,000 in mega-cap assets. These assets are highly stable but have lower growth potential.',
       };
     } else if (marketCap >= 10000000000) { // $10B - $100B
       return {
@@ -116,6 +180,7 @@ const MarketCapChart: React.FC<MarketCapChartProps> = ({ assets }) => {
         max: 250000,
         label: '≥ $50,000',
         color: '#4caf50',
+        explanation: 'For maximum gains, invest at least $50,000 in large-cap assets. These assets offer a good balance of stability and growth potential.',
       };
     } else if (marketCap >= 1000000000) { // $1B - $10B
       return {
@@ -123,6 +188,7 @@ const MarketCapChart: React.FC<MarketCapChartProps> = ({ assets }) => {
         max: 50000,
         label: '≥ $10,000',
         color: '#ff9800',
+        explanation: 'For maximum gains, invest at least $10,000 in mid-cap assets. These assets can offer good growth opportunities with moderate risk.',
       };
     } else if (marketCap >= 100000000) { // $100M - $1B
       return {
@@ -130,6 +196,7 @@ const MarketCapChart: React.FC<MarketCapChartProps> = ({ assets }) => {
         max: 25000,
         label: '≥ $5,000',
         color: '#f44336',
+        explanation: 'For maximum gains, invest at least $5,000 in small-cap assets. These assets can offer high growth potential but come with higher risk.',
       };
     } else if (marketCap >= 10000000) { // $10M - $100M
       return {
@@ -137,6 +204,7 @@ const MarketCapChart: React.FC<MarketCapChartProps> = ({ assets }) => {
         max: 5000,
         label: '≥ $1,000',
         color: '#9c27b0',
+        explanation: 'For maximum gains, invest at least $1,000 in micro-cap assets. These assets are highly volatile and speculative.',
       };
     } else {
       return {
@@ -144,6 +212,7 @@ const MarketCapChart: React.FC<MarketCapChartProps> = ({ assets }) => {
         max: 2500,
         label: '≥ $500',
         color: '#607d8b',
+        explanation: 'For maximum gains, invest at least $500 in nano-cap assets. These assets are extremely volatile and speculative.',
       };
     }
   };
@@ -152,10 +221,12 @@ const MarketCapChart: React.FC<MarketCapChartProps> = ({ assets }) => {
   const getOrderBookDepth = (asset: MarketCapData) => {
     const buyDepth = asset.orderBook.buy.reduce((sum, order) => sum + order.amount, 0);
     const sellDepth = asset.orderBook.sell.reduce((sum, order) => sum + order.amount, 0);
+    const spread = asset.orderBook.sell[0].price - asset.orderBook.buy[0].price;
     return {
       buy: buyDepth,
       sell: sellDepth,
-      spread: asset.orderBook.sell[0].price - asset.orderBook.buy[0].price,
+      spread,
+      explanation: explainOrderBook(buyDepth, sellDepth, spread),
     };
   };
 
@@ -170,73 +241,52 @@ const MarketCapChart: React.FC<MarketCapChartProps> = ({ assets }) => {
     })));
   }, 5000); // Update every 5 seconds
 
-  // Order book visualization
-  const renderOrderBook = () => {
-    if (!selectedAsset) return null;
-
-    const { buy, sell, spread } = getOrderBookDepth(selectedAsset);
-    
-    return (
-      <Dialog open={orderBookDialogOpen} onClose={() => setOrderBookDialogOpen(false)} maxWidth="md" fullWidth>
-        <DialogTitle>
-          <Stack direction="row" alignItems="center" spacing={2}>
-            <Typography variant="h6">
-              {selectedAsset.name} Order Book
+  // Custom tooltip with explanations
+  const CustomTooltip = ({ active, payload }: any) => {
+    if (active && payload && payload.length) {
+      const { name, marketCap, price, volume, change24h } = payload[0].payload;
+      
+      return (
+        <Paper elevation={3} sx={{ p: 2, maxWidth: 400 }}>
+          <Stack spacing={2}>
+            <Typography variant="subtitle2">
+              {name}
             </Typography>
-            <Chip
-              label={`Spread: ${spread.toFixed(4)} (${(spread / selectedAsset.price * 100).toFixed(2)}%)`}
-              color={spread < 0.01 ? 'success' : spread < 0.1 ? 'warning' : 'error'}
-            />
-          </Stack>
-        </DialogTitle>
-        <DialogContent>
-          <Stack spacing={3}>
-            {/* Buy Orders */}
-            <Box>
-              <Typography variant="subtitle1" color="success.main">
-                Buy Orders (Depth: {formatNumber(buy)} BTC)
+            
+            {/* Market Cap Explanation */}
+            <Stack spacing={1}>
+              <Typography variant="body2">
+                <strong>Market Cap:</strong> ${formatNumber(marketCap)}
               </Typography>
-              <ResponsiveContainer width="100%" height={200}>
-                <AreaChart data={selectedAsset.orderBook.buy}>
-                  <XAxis dataKey="price" />
-                  <YAxis />
-                  <Area
-                    type="monotone"
-                    dataKey="amount"
-                    fill="#4caf50"
-                    stroke="#4caf50"
-                    name="Buy Orders"
-                  />
-                </AreaChart>
-              </ResponsiveContainer>
-            </Box>
+              <Typography variant="caption" color="text.secondary">
+                {explainMarketCap(marketCap)}
+              </Typography>
+            </Stack>
 
-            {/* Sell Orders */}
-            <Box>
-              <Typography variant="subtitle1" color="error.main">
-                Sell Orders (Depth: {formatNumber(sell)} BTC)
+            {/* Price Explanation */}
+            <Stack spacing={1}>
+              <Typography variant="body2">
+                <strong>Price:</strong> ${price.toFixed(2)}
               </Typography>
-              <ResponsiveContainer width="100%" height={200}>
-                <AreaChart data={selectedAsset.orderBook.sell}>
-                  <XAxis dataKey="price" />
-                  <YAxis />
-                  <Area
-                    type="monotone"
-                    dataKey="amount"
-                    fill="#f44336"
-                    stroke="#f44336"
-                    name="Sell Orders"
-                  />
-                </AreaChart>
-              </ResponsiveContainer>
-            </Box>
+              <Typography variant="caption" color="text.secondary">
+                {explainPriceChange(change24h)}
+              </Typography>
+            </Stack>
+
+            {/* Volume Explanation */}
+            <Stack spacing={1}>
+              <Typography variant="body2">
+                <strong>24h Volume:</strong> ${formatNumber(volume)}
+              </Typography>
+              <Typography variant="caption" color="text.secondary">
+                {explainVolume(volume, marketCap)}
+              </Typography>
+            </Stack>
           </Stack>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setOrderBookDialogOpen(false)}>Close</Button>
-        </DialogActions>
-      </Dialog>
-    );
+        </Paper>
+      );
+    }
+    return null;
   };
 
   return (
@@ -251,7 +301,7 @@ const MarketCapChart: React.FC<MarketCapChartProps> = ({ assets }) => {
             <CartesianGrid strokeDasharray="3 3" />
             <XAxis dataKey="name" />
             <YAxis />
-            <Tooltip />
+            <Tooltip content={<CustomTooltip />} />
             <Legend />
             <Bar
               dataKey="marketCap"
@@ -350,33 +400,74 @@ const MarketCapChart: React.FC<MarketCapChartProps> = ({ assets }) => {
             <TableBody>
               {sortedData.map((asset, index) => {
                 const threshold = getInvestmentThreshold(asset.marketCap);
-                const { buy, sell, spread } = getOrderBookDepth(asset);
+                const { buy, sell, spread, explanation: orderBookExplanation } = getOrderBookDepth(asset);
 
                 return (
-                  <TableRow key={index}>
-                    <TableCell>{asset.name}</TableCell>
-                    <TableCell align="right">
-                      ${formatNumber(asset.marketCap)}
+                  <TableRow
+                    key={index}
+                    onMouseEnter={() => setHoveredAsset(asset)}
+                    onMouseLeave={() => setHoveredAsset(null)}
+                  >
+                    <TableCell>
+                      <Stack direction="column" spacing={1}>
+                        <Typography>{asset.name}</Typography>
+                        {hoveredAsset?.id === asset.id && (
+                          <Alert severity="info" sx={{ fontSize: '0.75rem' }}>
+                            {explainMarketCap(asset.marketCap)}
+                          </Alert>
+                        )}
+                      </Stack>
                     </TableCell>
                     <TableCell align="right">
-                      ${asset.price.toFixed(2)}
+                      <Stack direction="column" spacing={1}>
+                        <Typography>${formatNumber(asset.marketCap)}</Typography>
+                        {hoveredAsset?.id === asset.id && (
+                          <Alert severity="info" sx={{ fontSize: '0.75rem' }}>
+                            {threshold.explanation}
+                          </Alert>
+                        )}
+                      </Stack>
                     </TableCell>
                     <TableCell align="right">
-                      <Typography
-                        sx={{
-                          color: asset.change24h >= 0 ? 'success.main' : 'error.main',
-                          fontWeight: 'bold',
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: 1,
-                        }}
-                      >
-                        {asset.change24h.toFixed(2)}%
-                        {asset.change24h >= 0 ? <TrendingUp /> : <TrendingDown />}
-                      </Typography>
+                      <Stack direction="column" spacing={1}>
+                        <Typography>${asset.price.toFixed(2)}</Typography>
+                        {hoveredAsset?.id === asset.id && (
+                          <Alert severity="info" sx={{ fontSize: '0.75rem' }}>
+                            {explainPriceChange(asset.change24h)}
+                          </Alert>
+                        )}
+                      </Stack>
                     </TableCell>
                     <TableCell align="right">
-                      ${formatNumber(asset.volume)}
+                      <Stack direction="column" spacing={1}>
+                        <Typography
+                          sx={{
+                            color: asset.change24h >= 0 ? 'success.main' : 'error.main',
+                            fontWeight: 'bold',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 1,
+                          }}
+                        >
+                          {asset.change24h.toFixed(2)}%
+                          {asset.change24h >= 0 ? <TrendingUp /> : <TrendingDown />}
+                        </Typography>
+                        {hoveredAsset?.id === asset.id && (
+                          <Alert severity="info" sx={{ fontSize: '0.75rem' }}>
+                            {explainPriceChange(asset.change24h)}
+                          </Alert>
+                        )}
+                      </Stack>
+                    </TableCell>
+                    <TableCell align="right">
+                      <Stack direction="column" spacing={1}>
+                        <Typography>${formatNumber(asset.volume)}</Typography>
+                        {hoveredAsset?.id === asset.id && (
+                          <Alert severity="info" sx={{ fontSize: '0.75rem' }}>
+                            {explainVolume(asset.volume, asset.marketCap)}
+                          </Alert>
+                        )}
+                      </Stack>
                     </TableCell>
                     <TableCell align="right">
                       <Stack direction="row" alignItems="center" spacing={1}>
@@ -411,14 +502,16 @@ const MarketCapChart: React.FC<MarketCapChartProps> = ({ assets }) => {
                     </TableCell>
                     <TableCell align="center">
                       <Stack direction="row" spacing={1}>
-                        <IconButton
-                          onClick={() => {
-                            setSelectedAsset(asset);
-                            setOrderBookDialogOpen(true);
-                          }}
-                        >
-                          <TrendingFlat />
-                        </IconButton>
+                        <MuiTooltip title={orderBookExplanation}>
+                          <IconButton
+                            onClick={() => {
+                              setSelectedAsset(asset);
+                              setOrderBookDialogOpen(true);
+                            }}
+                          >
+                            <TrendingFlat />
+                          </IconButton>
+                        </MuiTooltip>
                         <IconButton
                           onClick={() => {
                             // TODO: Implement investment calculator
@@ -441,39 +534,71 @@ const MarketCapChart: React.FC<MarketCapChartProps> = ({ assets }) => {
             </TableBody>
           </Table>
         </TableContainer>
-
-        {/* Investment Calculator */}
-        <Box sx={{ mt: 3 }}>
-          <Typography variant="h6" sx={{ mb: 2 }}>
-            Investment Calculator
-          </Typography>
-          <Stack direction="row" alignItems="center" spacing={2}>
-            <Typography>
-              Investment Amount: ${investmentThreshold.toLocaleString()}
-            </Typography>
-            <Slider
-              value={investmentThreshold}
-              min={500}
-              max={500000}
-              step={100}
-              onChange={(_, value) => setInvestmentThreshold(value as number)}
-              marks={[
-                { value: 500, label: '$500' },
-                { value: 1000, label: '$1,000' },
-                { value: 5000, label: '$5,000' },
-                { value: 10000, label: '$10,000' },
-                { value: 50000, label: '$50,000' },
-                { value: 100000, label: '$100,000' },
-                { value: 500000, label: '$500,000' },
-              ]}
-              valueLabelDisplay="auto"
-            />
-          </Stack>
-        </Box>
       </Box>
 
       {/* Order Book Dialog */}
-      {renderOrderBook()}
+      {selectedAsset && (
+        <Dialog open={orderBookDialogOpen} onClose={() => setOrderBookDialogOpen(false)} maxWidth="md" fullWidth>
+          <DialogTitle>
+            <Stack direction="row" alignItems="center" spacing={2}>
+              <Typography variant="h6">
+                {selectedAsset.name} Order Book
+              </Typography>
+              <Chip
+                label={getOrderBookDepth(selectedAsset).explanation}
+                color="info"
+                size="small"
+              />
+            </Stack>
+          </DialogTitle>
+          <DialogContent>
+            <Stack spacing={3}>
+              {/* Buy Orders */}
+              <Box>
+                <Typography variant="subtitle1" color="success.main">
+                  Buy Orders (Depth: {formatNumber(getOrderBookDepth(selectedAsset).buy)} BTC)
+                </Typography>
+                <ResponsiveContainer width="100%" height={200}>
+                  <AreaChart data={selectedAsset.orderBook.buy}>
+                    <XAxis dataKey="price" />
+                    <YAxis />
+                    <Area
+                      type="monotone"
+                      dataKey="amount"
+                      fill="#4caf50"
+                      stroke="#4caf50"
+                      name="Buy Orders"
+                    />
+                  </AreaChart>
+                </ResponsiveContainer>
+              </Box>
+
+              {/* Sell Orders */}
+              <Box>
+                <Typography variant="subtitle1" color="error.main">
+                  Sell Orders (Depth: {formatNumber(getOrderBookDepth(selectedAsset).sell)} BTC)
+                </Typography>
+                <ResponsiveContainer width="100%" height={200}>
+                  <AreaChart data={selectedAsset.orderBook.sell}>
+                    <XAxis dataKey="price" />
+                    <YAxis />
+                    <Area
+                      type="monotone"
+                      dataKey="amount"
+                      fill="#f44336"
+                      stroke="#f44336"
+                      name="Sell Orders"
+                    />
+                  </AreaChart>
+                </ResponsiveContainer>
+              </Box>
+            </Stack>
+          </DialogContent>
+          <DialogActions>
+            <Button onClick={() => setOrderBookDialogOpen(false)}>Close</Button>
+          </DialogActions>
+        </Dialog>
+      )}
     </Box>
   );
 };
