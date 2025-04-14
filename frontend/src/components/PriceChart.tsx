@@ -15,25 +15,13 @@ import {
 } from 'recharts';
 import {
   Box,
-  FormControl,
-  InputLabel,
-  Select,
-  MenuItem,
-  Checkbox,
-  FormGroup,
-  FormControlLabel,
   Typography,
-  CircularProgress,
-  Slider,
-  IconButton,
-  Tooltip as MuiTooltip,
   Stack,
-  Button,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
-  TextField,
+  Chip,
+  Tooltip as MuiTooltip,
+  Paper,
+  IconButton,
+  useTheme,
 } from '@mui/material';
 import { ChartData, ChartConfig, CryptoAsset } from '../../types/chart';
 import { useAppSelector } from '../../app/hooks';
@@ -50,61 +38,68 @@ import {
   TrendingUp,
   TrendingDown,
   TrendingFlat,
+  Info,
 } from '@mui/icons-material';
 
-// Define line styles for indicators
-const indicatorStyles = {
-  rsi: {
-    stroke: '#8B0000',
-    strokeWidth: 1,
-    strokeDasharray: '5 5',
-  },
-  macd: {
-    macd: {
-      stroke: '#006400',
-      strokeWidth: 1,
-      strokeDasharray: '3 3',
-    },
-    signal: {
-      stroke: '#4B0082',
-      strokeWidth: 1,
-      strokeDasharray: '2 2',
-    },
-    histogram: {
-      fill: '#006400',
-      fillOpacity: 0.2,
-    },
-  },
-  bollinger: {
-    upper: {
-      stroke: '#FFA500',
-      strokeWidth: 1,
-      strokeDasharray: '4 4',
-    },
-    lower: {
-      stroke: '#FFA500',
-      strokeWidth: 1,
-      strokeDasharray: '4 4',
-    },
-  },
-  ma: {
-    short: {
-      stroke: '#808080',
-      strokeWidth: 1,
-      strokeDasharray: '6 6',
-    },
-    long: {
-      stroke: '#404040',
-      strokeWidth: 1,
-      strokeDasharray: '8 8',
-    },
-  },
-  volume: {
-    fill: '#4169E1',
-    fillOpacity: 0.3,
-    stroke: '#4169E1',
-    strokeWidth: 1,
-  },
+// Helper function to explain price movement
+const explainPriceMovement = (current: number, previous: number): string => {
+  const change = ((current - previous) / previous) * 100;
+  if (change > 2) {
+    return `Price has increased significantly (${change.toFixed(1)}%) - This could indicate strong buying pressure.`;
+  } else if (change > 0.5) {
+    return `Price is trending up (${change.toFixed(1)}%) - This might be a good time to buy.`;
+  } else if (change < -2) {
+    return `Price has dropped significantly (${Math.abs(change).toFixed(1)}%) - This could be a buying opportunity.`;
+  } else if (change < -0.5) {
+    return `Price is trending down (${Math.abs(change).toFixed(1)}%) - Consider holding or selling.`;
+  } else {
+    return `Price is relatively stable (${change.toFixed(1)}%) - No significant movement detected.`;
+  }
+};
+
+// Helper function to explain RSI
+const explainRSI = (rsi: number): string => {
+  if (rsi >= 70) {
+    return `RSI is overbought (${rsi.toFixed(1)}). This usually indicates that the asset is overvalued and may be due for a correction.`;
+  } else if (rsi <= 30) {
+    return `RSI is oversold (${rsi.toFixed(1)}). This usually indicates that the asset is undervalued and may be due for a recovery.`;
+  } else if (rsi >= 60) {
+    return `RSI is strong (${rsi.toFixed(1)}). This indicates strong buying pressure.`;
+  } else if (rsi <= 40) {
+    return `RSI is weak (${rsi.toFixed(1)}). This indicates strong selling pressure.`;
+  } else {
+    return `RSI is neutral (${rsi.toFixed(1)}). No strong buying or selling pressure detected.`;
+  }
+};
+
+// Helper function to explain MACD
+const explainMACD = (macd: number, signal: number, histogram: number): string => {
+  const isBullish = histogram > 0;
+  const isStrong = Math.abs(histogram) > 0.5;
+
+  if (isBullish && isStrong) {
+    return `MACD is strongly bullish (${histogram.toFixed(2)}). This indicates strong buying pressure and a good time to buy.`;
+  } else if (isBullish) {
+    return `MACD is bullish (${histogram.toFixed(2)}). This indicates buying pressure.`;
+  } else if (!isBullish && isStrong) {
+    return `MACD is strongly bearish (${histogram.toFixed(2)}). This indicates strong selling pressure and a good time to sell.`;
+  } else {
+    return `MACD is bearish (${histogram.toFixed(2)}). This indicates selling pressure.`;
+  }
+};
+
+// Helper function to explain Bollinger Bands
+const explainBollinger = (price: number, upper: number, lower: number): string => {
+  const isOverbought = price > upper;
+  const isOversold = price < lower;
+
+  if (isOverbought) {
+    return `Price is above the upper band (${price.toFixed(2)} > ${upper.toFixed(2)}). This usually indicates that the asset is overvalued and may be due for a correction.`;
+  } else if (isOversold) {
+    return `Price is below the lower band (${price.toFixed(2)} < ${lower.toFixed(2)}). This usually indicates that the asset is undervalued and may be due for a recovery.`;
+  } else {
+    return `Price is within the Bollinger Bands (${price.toFixed(2)}). This indicates normal price volatility.`;
+  }
 };
 
 interface PriceChartProps {
@@ -112,14 +107,262 @@ interface PriceChartProps {
   onAssetChange: (asset: CryptoAsset) => void;
 }
 
-// ... [Rest of the component code remains the same until the chart rendering part] ...
+export const PriceChart: React.FC<PriceChartProps> = ({ assets, onAssetChange }) => {
+  const selectedAsset = useAppSelector((state) => state.chart.selectedAsset);
+  const timeInterval = useAppSelector((state) => state.timeInterval.interval);
+  const chartConfig = useAppSelector((state) => state.chart.config);
+  const [chartData, setChartData] = useState<ChartData[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [zoomLevel, setZoomLevel] = useState(1);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const [brushDomain, setBrushDomain] = useState<number[]>([]);
+  const [hoveredPoint, setHoveredPoint] = useState<any>(null);
+  const theme = useTheme();
+  const chartRef = useRef<any>(null);
 
+  // Fetch data from CoinGecko
+  useEffect(() => {
+    const fetchChartData = async () => {
+      if (!selectedAsset.id) return;
+
+      setIsLoading(true);
+      try {
+        const days = 30; // Fetch 30 days of data
+        const data = await coingeckoApi.getHistoricalData(
+          selectedAsset.id,
+          days,
+          timeInterval
+        );
+        
+        // Calculate technical indicators with current settings
+        const { data: dataWithIndicators } = calculateAllIndicators(data);
+        setChartData(dataWithIndicators);
+      } catch (error) {
+        console.error('Error fetching chart data:', error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchChartData();
+  }, [selectedAsset.id, timeInterval]);
+
+  // Format timestamp
+  const formatTimestamp = (timestamp: number) => {
+    return new Date(timestamp).toLocaleTimeString();
+  };
+
+  // Custom tooltip with explanations
+  const CustomTooltip = ({ active, payload }: any) => {
+    if (active && payload && payload.length) {
+      const { timestamp, price, rsi, macd, macdSignal, macdHistogram, upperBand, lowerBand } = payload[0].payload;
+      
+      // Get previous price for comparison
+      const currentIndex = chartData.findIndex(d => d.timestamp === timestamp);
+      const previousPrice = currentIndex > 0 ? chartData[currentIndex - 1].price : price;
+
+      return (
+        <Paper elevation={3} sx={{ p: 2, maxWidth: 400 }}>
+          <Stack spacing={2}>
+            <Typography variant="subtitle2">
+              {formatTimestamp(timestamp)}
+            </Typography>
+            
+            {/* Price Explanation */}
+            <Stack spacing={1}>
+              <Typography variant="body2">
+                <strong>Price:</strong> ${price.toFixed(2)}
+              </Typography>
+              <Typography variant="caption" color="text.secondary">
+                {explainPriceMovement(price, previousPrice)}
+              </Typography>
+            </Stack>
+
+            {/* RSI Explanation */}
+            {rsi && (
+              <Stack spacing={1}>
+                <Typography variant="body2">
+                  <strong>RSI:</strong> {rsi.toFixed(1)}
+                </Typography>
+                <Typography variant="caption" color="text.secondary">
+                  {explainRSI(rsi)}
+                </Typography>
+              </Stack>
+            )}
+
+            {/* MACD Explanation */}
+            {macd && macdSignal && (
+              <Stack spacing={1}>
+                <Typography variant="body2">
+                  <strong>MACD:</strong> {macd.toFixed(1)} / {macdSignal.toFixed(1)}
+                </Typography>
+                <Typography variant="caption" color="text.secondary">
+                  {explainMACD(macd, macdSignal, macdHistogram)}
+                </Typography>
+              </Stack>
+            )}
+
+            {/* Bollinger Bands Explanation */}
+            {upperBand && lowerBand && (
+              <Stack spacing={1}>
+                <Typography variant="body2">
+                  <strong>Bollinger Bands:</strong> {lowerBand.toFixed(2)} - {upperBand.toFixed(2)}
+                </Typography>
+                <Typography variant="caption" color="text.secondary">
+                  {explainBollinger(price, upperBand, lowerBand)}
+                </Typography>
+              </Stack>
+            )}
+          </Stack>
+        </Paper>
+      );
+    }
+    return null;
+  };
+
+  // Loading state
+  if (isLoading) {
+    return (
+      <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: 400 }}>
+        <CircularProgress />
+      </Box>
+    );
+  }
+
+  // No data state
+  if (chartData.length === 0) {
+    return (
+      <Box sx={{ p: 2, textAlign: 'center' }}>
+        <Typography variant="body1">No data available</Typography>
+      </Box>
+    );
+  }
+
+  return (
+    <Box sx={{ p: 2 }}>
+      {/* Controls */}
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 2 }}>
+        <FormControl size="small" sx={{ minWidth: 120 }}>
+          <InputLabel>Asset</InputLabel>
+          <Select
+            value={selectedAsset.symbol}
+            onChange={(e) => {
+              const newAsset = assets.find((a) => a.symbol === e.target.value) || assets[0];
+              onAssetChange(newAsset);
+            }}
+            label="Asset"
+          >
+            {assets.map((asset) => (
+              <MenuItem key={asset.symbol} value={asset.symbol}>
+                {asset.name} ({asset.symbol})
+              </MenuItem>
+            ))}
+          </Select>
+        </FormControl>
+
+        <Stack direction="row" spacing={2}>
+          <FormControlLabel
+            control={
+              <Checkbox
+                checked={chartConfig.rsi.enabled}
+                onChange={() => {
+                  // Dispatch action to toggle RSI
+                }}
+              />
+            }
+            label={
+              <MuiTooltip title="RSI measures price momentum. Values above 70 indicate overbought conditions, while values below 30 indicate oversold conditions.">
+                <span>RSI</span>
+              </MuiTooltip>
+            }
+          />
+          <FormControlLabel
+            control={
+              <Checkbox
+                checked={chartConfig.macd.enabled}
+                onChange={() => {
+                  // Dispatch action to toggle MACD
+                }}
+              />
+            }
+            label={
+              <MuiTooltip title="MACD shows the relationship between two moving averages of prices. A positive histogram indicates upward momentum, while a negative histogram indicates downward momentum.">
+                <span>MACD</span>
+              </MuiTooltip>
+            }
+          />
+          <FormControlLabel
+            control={
+              <Checkbox
+                checked={chartConfig.bollingerBands.enabled}
+                onChange={() => {
+                  // Dispatch action to toggle Bollinger Bands
+                }}
+              />
+            }
+            label={
+              <MuiTooltip title="Bollinger Bands consist of a moving average and two standard deviations. Prices tend to stay within the bands, with breakouts indicating potential trend changes.">
+                <span>Bollinger Bands</span>
+              </MuiTooltip>
+            }
+          />
+        </Stack>
+
+        {/* Zoom controls */}
+        <Stack direction="row" spacing={1}>
+          <MuiTooltip title="Zoom In">
+            <IconButton onClick={() => setZoomLevel(zoomLevel * 1.5)}>
+              <ZoomIn />
+            </IconButton>
+          </MuiTooltip>
+          <MuiTooltip title="Zoom Out">
+            <IconButton onClick={() => setZoomLevel(zoomLevel / 1.5)}>
+              <ZoomOut />
+            </IconButton>
+          </MuiTooltip>
+          <MuiTooltip title="Fullscreen">
+            <IconButton onClick={() => setIsFullscreen(!isFullscreen)}>
+              {isFullscreen ? <FullscreenExit /> : <Fullscreen />}
+            </IconButton>
+          </MuiTooltip>
+          <MuiTooltip title="Show explanations">
+            <IconButton onClick={() => setHoveredPoint(null)}>
+              <Info />
+            </IconButton>
+          </MuiTooltip>
+        </Stack>
+      </Box>
+
+      {/* Chart container */}
+      <Box
+        sx={{
+          height: isFullscreen ? '90vh' : 400,
+          width: '100%',
+          position: 'relative',
+          overflow: 'hidden',
+        }}
+      >
+        <ResponsiveContainer width="100%" height="100%">
+          <LineChart
+            ref={chartRef}
+            data={chartData}
+            margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
+            onMouseMove={(e) => {
+              const point = e.activePayload?.[0];
+              if (point) {
+                setHoveredPoint(point);
+              }
+            }}
+            onMouseLeave={() => setHoveredPoint(null)}
+          >
+            <CartesianGrid strokeDasharray="3 3" />
+            
             {/* Price line */}
             <Line
               type="monotone"
               dataKey="price"
               name="Price"
-              stroke="#000000"
+              stroke="#2196f3"
               strokeWidth={2}
               animationDuration={500}
               animationEasing="easeOutQuart"
@@ -131,9 +374,8 @@ interface PriceChartProps {
                 type="monotone"
                 dataKey="rsi"
                 name="RSI"
-                stroke={indicatorStyles.rsi.stroke}
-                strokeWidth={indicatorStyles.rsi.strokeWidth}
-                strokeDasharray={indicatorStyles.rsi.strokeDasharray}
+                stroke="#f44336"
+                strokeWidth={1}
                 animationDuration={500}
                 animationEasing="easeOutQuart"
               />
@@ -146,9 +388,8 @@ interface PriceChartProps {
                   type="monotone"
                   dataKey="macd"
                   name="MACD"
-                  stroke={indicatorStyles.macd.macd.stroke}
-                  strokeWidth={indicatorStyles.macd.macd.strokeWidth}
-                  strokeDasharray={indicatorStyles.macd.macd.strokeDasharray}
+                  stroke="#4caf50"
+                  strokeWidth={1}
                   animationDuration={500}
                   animationEasing="easeOutQuart"
                 />
@@ -156,9 +397,8 @@ interface PriceChartProps {
                   type="monotone"
                   dataKey="macdSignal"
                   name="MACD Signal"
-                  stroke={indicatorStyles.macd.signal.stroke}
-                  strokeWidth={indicatorStyles.macd.signal.strokeWidth}
-                  strokeDasharray={indicatorStyles.macd.signal.strokeDasharray}
+                  stroke="#9c27b0"
+                  strokeWidth={1}
                   animationDuration={500}
                   animationEasing="easeOutQuart"
                 />
@@ -166,8 +406,8 @@ interface PriceChartProps {
                   type="monotone"
                   dataKey="macdHistogram"
                   name="MACD Histogram"
-                  fill={indicatorStyles.macd.histogram.fill}
-                  fillOpacity={indicatorStyles.macd.histogram.fillOpacity}
+                  fill="#4caf50"
+                  fillOpacity={0.3}
                   stroke="none"
                 />
               </>
@@ -180,9 +420,8 @@ interface PriceChartProps {
                   type="monotone"
                   dataKey="upperBand"
                   name="Upper Band"
-                  stroke={indicatorStyles.bollinger.upper.stroke}
-                  strokeWidth={indicatorStyles.bollinger.upper.strokeWidth}
-                  strokeDasharray={indicatorStyles.bollinger.upper.strokeDasharray}
+                  stroke="#ff9800"
+                  strokeWidth={1}
                   animationDuration={500}
                   animationEasing="easeOutQuart"
                 />
@@ -190,84 +429,14 @@ interface PriceChartProps {
                   type="monotone"
                   dataKey="lowerBand"
                   name="Lower Band"
-                  stroke={indicatorStyles.bollinger.lower.stroke}
-                  strokeWidth={indicatorStyles.bollinger.lower.strokeWidth}
-                  strokeDasharray={indicatorStyles.bollinger.lower.strokeDasharray}
+                  stroke="#ff9800"
+                  strokeWidth={1}
                   animationDuration={500}
                   animationEasing="easeOutQuart"
                 />
               </>
             )}
 
-            {/* Moving Averages */}
-            {chartConfig.movingAverages.enabled && (
-              <>
-                <Line
-                  type="monotone"
-                  dataKey="shortMA"
-                  name="Short MA"
-                  stroke={indicatorStyles.ma.short.stroke}
-                  strokeWidth={indicatorStyles.ma.short.strokeWidth}
-                  strokeDasharray={indicatorStyles.ma.short.strokeDasharray}
-                  animationDuration={500}
-                  animationEasing="easeOutQuart"
-                />
-                <Line
-                  type="monotone"
-                  dataKey="longMA"
-                  name="Long MA"
-                  stroke={indicatorStyles.ma.long.stroke}
-                  strokeWidth={indicatorStyles.ma.long.strokeWidth}
-                  strokeDasharray={indicatorStyles.ma.long.strokeDasharray}
-                  animationDuration={500}
-                  animationEasing="easeOutQuart"
-                />
-              </>
-            )}
-
-            {/* Volume */}
-            {chartConfig.volume.enabled && (
-              <AreaChart
-                width={800}
-                height={100}
-                data={chartData}
-                margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
-              >
-                <XAxis dataKey="timestamp" hide />
-                <YAxis hide />
-                <Area
-                  type="monotone"
-                  dataKey="volume"
-                  fill={indicatorStyles.volume.fill}
-                  fillOpacity={indicatorStyles.volume.fillOpacity}
-                  stroke={indicatorStyles.volume.stroke}
-                  strokeWidth={indicatorStyles.volume.strokeWidth}
-                />
-              </AreaChart>
-            )}
-
-            {/* Add reference lines for RSI levels */}
-            {chartConfig.rsi.enabled && (
-              <>
-                <ReferenceLine
-                  y={indicatorSettings.rsi.overbought}
-                  stroke="#8B0000"
-                  strokeDasharray="3 3"
-                  label={{ value: 'Overbought', position: 'left' }}
-                />
-                <ReferenceLine
-                  y={indicatorSettings.rsi.oversold}
-                  stroke="#8B0000"
-                  strokeDasharray="3 3"
-                  label={{ value: 'Oversold', position: 'left' }}
-                />
-              </>
-            )}
-
-            {/* Add grid lines */}
-            <CartesianGrid stroke="#333333" strokeDasharray="2 2" />
-
-            {/* X and Y axes */}
             <XAxis
               dataKey="timestamp"
               tickFormatter={formatTimestamp}
@@ -275,100 +444,20 @@ interface PriceChartProps {
               textAnchor="end"
               type="number"
               domain={brushDomain.length ? brushDomain : [0, 'dataMax']}
-              stroke="#666666"
             />
-            <YAxis stroke="#666666" />
-
-            {/* Tooltips and legend */}
+            <YAxis />
             <Tooltip content={<CustomTooltip />} />
-            <Legend wrapperStyle={{ fontSize: '12px', color: '#666666' }} />
-
-            {/* Brush for zooming */}
+            <Legend />
             <Brush
               dataKey="timestamp"
               height={30}
-              stroke="#666666"
+              stroke="#8884d8"
               onChange={handleBrushDomainChange}
               onEnd={handleBrushDomainChange}
             />
           </LineChart>
         </ResponsiveContainer>
-
-        {/* Zoom slider */}
-        <Box sx={{ mt: 2 }}>
-          <Typography variant="caption" sx={{ mb: 1, color: '#666666' }}>
-            Zoom Level
-          </Typography>
-          <Slider
-            value={zoomLevel}
-            min={1}
-            max={10}
-            step={0.1}
-            onChange={handleZoomChange}
-            valueLabelDisplay="auto"
-            sx={{
-              '& .MuiSlider-track': {
-                backgroundColor: '#444444',
-              },
-              '& .MuiSlider-thumb': {
-                backgroundColor: '#000000',
-              },
-              '& .MuiSlider-mark': {
-                backgroundColor: '#666666',
-              },
-              '& .MuiSlider-markActive': {
-                backgroundColor: '#000000',
-              },
-            }}
-          />
-        </Box>
       </Box>
-
-      {/* Settings Dialog */}
-      <Dialog open={settingsOpen} onClose={() => setSettingsOpen(false)}>
-        <DialogTitle sx={{ color: '#000000' }}>Indicator Settings</DialogTitle>
-        <DialogContent>
-          <Stack spacing={2}>
-            {/* RSI Settings */}
-            <Box>
-              <Typography variant="subtitle2" sx={{ color: '#000000' }}>RSI Settings</Typography>
-              <TextField
-                label="Period"
-                type="number"
-                value={indicatorSettings.rsi.period}
-                onChange={(e) => {
-                  setIndicatorSettings(prev => ({
-                    ...prev,
-                    rsi: { ...prev.rsi, period: parseInt(e.target.value) }
-                  }));
-                }}
-                fullWidth
-                sx={{
-                  '& .MuiInputLabel-root': { color: '#666666' },
-                  '& .MuiOutlinedInput-root': {
-                    '& fieldset': { borderColor: '#444444' },
-                    '&:hover fieldset': { borderColor: '#666666' },
-                    '&.Mui-focused fieldset': { borderColor: '#000000' },
-                  },
-                }}
-              />
-              {/* ... rest of settings fields ... */}
-            </Box>
-            {/* ... rest of settings dialog ... */}
-          </Stack>
-        </DialogContent>
-        <DialogActions>
-          <Button
-            onClick={() => setSettingsOpen(false)}
-            sx={{
-              '&:hover': { backgroundColor: '#444444' },
-              '&:active': { backgroundColor: '#333333' },
-            }}
-          >
-            Close
-          </Button>
-        </DialogActions>
-      </Dialog>
     </Box>
   );
 };
