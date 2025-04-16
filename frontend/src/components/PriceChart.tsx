@@ -9,105 +9,86 @@ import {
   Legend,
   ResponsiveContainer,
   Brush,
-  ReferenceLine,
-  AreaChart,
   Area,
+  TooltipProps,
 } from 'recharts';
 import {
   Box,
   Typography,
   Stack,
-  Chip,
+  CircularProgress,
   Tooltip as MuiTooltip,
   Paper,
   IconButton,
-  useTheme,
+  FormControl,
+  InputLabel,
+  MenuItem,
+  FormControlLabel,
+  Checkbox,
+  Select,
 } from '@mui/material';
-import { ChartData, ChartConfig, CryptoAsset } from '../../types/chart';
-import { useAppSelector } from '../../app/hooks';
-import { coingeckoApi } from '../../services/coingecko';
-import { calculateAllIndicators } from '../../utils/technicalIndicators';
+import { ChartData, ChartConfig, CryptoAsset } from '../types/chart';
+import { useAppSelector, useAppDispatch } from '../app/hooks';
+import { coingeckoApi } from '../services/coingecko';
+import { calculateAllIndicators } from '../utils/technicalIndicators';
+import { setSelectedAsset, toggleIndicator } from '../features/chart/chartSlice';
+import { setTimeInterval } from '../features/timeInterval/timeIntervalSlice';
 import {
-  FastForward,
-  FastRewind,
   ZoomIn,
   ZoomOut,
   Fullscreen,
   FullscreenExit,
-  Settings,
-  TrendingUp,
-  TrendingDown,
-  TrendingFlat,
-  Info,
 } from '@mui/icons-material';
-
-// Helper function to explain price movement
-const explainPriceMovement = (current: number, previous: number): string => {
-  const change = ((current - previous) / previous) * 100;
-  if (change > 2) {
-    return `Price has increased significantly (${change.toFixed(1)}%) - This could indicate strong buying pressure.`;
-  } else if (change > 0.5) {
-    return `Price is trending up (${change.toFixed(1)}%) - This might be a good time to buy.`;
-  } else if (change < -2) {
-    return `Price has dropped significantly (${Math.abs(change).toFixed(1)}%) - This could be a buying opportunity.`;
-  } else if (change < -0.5) {
-    return `Price is trending down (${Math.abs(change).toFixed(1)}%) - Consider holding or selling.`;
-  } else {
-    return `Price is relatively stable (${change.toFixed(1)}%) - No significant movement detected.`;
-  }
-};
-
-// Helper function to explain RSI
-const explainRSI = (rsi: number): string => {
-  if (rsi >= 70) {
-    return `RSI is overbought (${rsi.toFixed(1)}). This usually indicates that the asset is overvalued and may be due for a correction.`;
-  } else if (rsi <= 30) {
-    return `RSI is oversold (${rsi.toFixed(1)}). This usually indicates that the asset is undervalued and may be due for a recovery.`;
-  } else if (rsi >= 60) {
-    return `RSI is strong (${rsi.toFixed(1)}). This indicates strong buying pressure.`;
-  } else if (rsi <= 40) {
-    return `RSI is weak (${rsi.toFixed(1)}). This indicates strong selling pressure.`;
-  } else {
-    return `RSI is neutral (${rsi.toFixed(1)}). No strong buying or selling pressure detected.`;
-  }
-};
-
-// Helper function to explain MACD
-const explainMACD = (macd: number, signal: number, histogram: number): string => {
-  const isBullish = histogram > 0;
-  const isStrong = Math.abs(histogram) > 0.5;
-
-  if (isBullish && isStrong) {
-    return `MACD is strongly bullish (${histogram.toFixed(2)}). This indicates strong buying pressure and a good time to buy.`;
-  } else if (isBullish) {
-    return `MACD is bullish (${histogram.toFixed(2)}). This indicates buying pressure.`;
-  } else if (!isBullish && isStrong) {
-    return `MACD is strongly bearish (${histogram.toFixed(2)}). This indicates strong selling pressure and a good time to sell.`;
-  } else {
-    return `MACD is bearish (${histogram.toFixed(2)}). This indicates selling pressure.`;
-  }
-};
-
-// Helper function to explain Bollinger Bands
-const explainBollinger = (price: number, upper: number, lower: number): string => {
-  const isOverbought = price > upper;
-  const isOversold = price < lower;
-
-  if (isOverbought) {
-    return `Price is above the upper band (${price.toFixed(2)} > ${upper.toFixed(2)}). This usually indicates that the asset is overvalued and may be due for a correction.`;
-  } else if (isOversold) {
-    return `Price is below the lower band (${price.toFixed(2)} < ${lower.toFixed(2)}). This usually indicates that the asset is undervalued and may be due for a recovery.`;
-  } else {
-    return `Price is within the Bollinger Bands (${price.toFixed(2)}). This indicates normal price volatility.`;
-  }
-};
 
 interface PriceChartProps {
   assets: CryptoAsset[];
   onAssetChange: (asset: CryptoAsset) => void;
 }
 
+const CustomTooltip: React.FC<TooltipProps<number, string>> = ({ active, payload, label }) => {
+  if (active && payload && payload.length > 0 && payload[0].payload) {
+    const data = payload[0].payload;
+    const { name, marketCap, price, volume } = data;
+
+    return (
+      <Paper elevation={3} sx={{ p: 2, maxWidth: 400 }}>
+        <Stack spacing={2}>
+          <Typography variant="subtitle2">
+            {name}
+          </Typography>
+
+          <Stack spacing={1}>
+            <Typography variant="body2">
+              <strong>Price:</strong> ${price.toFixed(2)}
+            </Typography>
+          </Stack>
+
+          <Stack spacing={1}>
+            <Typography variant="body2">
+              <strong>24h Volume:</strong> ${new Intl.NumberFormat('en-US', { notation: 'compact', maximumFractionDigits: 1 }).format(volume)}
+            </Typography>
+          </Stack>
+        </Stack>
+      </Paper>
+    );
+  }
+  return null;
+};
+
 export const PriceChart: React.FC<PriceChartProps> = ({ assets, onAssetChange }) => {
+  const dispatch = useAppDispatch();
+
+  // Mock data for assets if none provided
+  const mockAssets: CryptoAsset[] = [
+    { id: 'bitcoin', name: 'Bitcoin', symbol: 'BTC', balance: 0, price: 0 },
+    { id: 'ethereum', name: 'Ethereum', symbol: 'ETH', balance: 0, price: 0 },
+    { id: 'ripple', name: 'Ripple', symbol: 'XRP', balance: 0, price: 0 },
+    { id: 'litecoin', name: 'Litecoin', symbol: 'LTC', balance: 0, price: 0 },
+    { id: 'cardano', name: 'Cardano', symbol: 'ADA', balance: 0, price: 0 },
+  ];
+
+  const assetsToUse = assets && assets.length > 0 ? assets : mockAssets;
+
   const selectedAsset = useAppSelector((state) => state.chart.selectedAsset);
   const timeInterval = useAppSelector((state) => state.timeInterval.interval);
   const chartConfig = useAppSelector((state) => state.chart.config);
@@ -116,25 +97,59 @@ export const PriceChart: React.FC<PriceChartProps> = ({ assets, onAssetChange })
   const [zoomLevel, setZoomLevel] = useState(1);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [brushDomain, setBrushDomain] = useState<number[]>([]);
-  const [hoveredPoint, setHoveredPoint] = useState<any>(null);
-  const theme = useTheme();
+
   const chartRef = useRef<any>(null);
 
-  // Fetch data from CoinGecko
+  const handleBrushDomainChange = (newIndex: any) => {
+    if (newIndex.startIndex !== undefined && newIndex.endIndex !== undefined) {
+      setBrushDomain([newIndex.startIndex, newIndex.endIndex]);
+    }
+  };
+
+  // Dispatch time interval change to keep functionality and avoid unused variable warning
+  useEffect(() => {
+    dispatch(setTimeInterval(timeInterval));
+  }, [timeInterval, dispatch]);
+
+  const xAxisDomain = React.useMemo(() => {
+    if (brushDomain.length === 2 && chartData.length > 0) {
+      const startIndex = brushDomain[0];
+      const endIndex = brushDomain[1];
+      const startTimestamp = chartData[startIndex]?.timestamp || 0;
+      const endTimestamp = chartData[endIndex]?.timestamp || chartData[chartData.length - 1].timestamp;
+      return [startTimestamp, endTimestamp];
+    }
+    return [chartData[0]?.timestamp || 0, chartData[chartData.length - 1]?.timestamp || 0];
+  }, [brushDomain, chartData]);
+
   useEffect(() => {
     const fetchChartData = async () => {
       if (!selectedAsset.id) return;
 
       setIsLoading(true);
       try {
-        const days = 30; // Fetch 30 days of data
+        // Map timeInterval to days for API call
+        const intervalToDaysMap: { [key: string]: number } = {
+          '1m': 1,
+          '5m': 1,
+          '30m': 1,
+          '1h': 1,
+          '1d': 1,
+          '1w': 7,
+          '1M': 30,
+          '3M': 90,
+          '6M': 180,
+          '1y': 365,
+        };
+
+        const days = intervalToDaysMap[timeInterval] || 30;
+
         const data = await coingeckoApi.getHistoricalData(
           selectedAsset.id,
           days,
           timeInterval
         );
-        
-        // Calculate technical indicators with current settings
+
         const { data: dataWithIndicators } = calculateAllIndicators(data);
         setChartData(dataWithIndicators);
       } catch (error) {
@@ -147,80 +162,14 @@ export const PriceChart: React.FC<PriceChartProps> = ({ assets, onAssetChange })
     fetchChartData();
   }, [selectedAsset.id, timeInterval]);
 
-  // Format timestamp
   const formatTimestamp = (timestamp: number) => {
+    // For intervals longer than 1 day, show date instead of time
+    if (['1w', '1M', '3M', '6M', '1y'].includes(timeInterval)) {
+      return new Date(timestamp).toLocaleDateString();
+    }
     return new Date(timestamp).toLocaleTimeString();
   };
 
-  // Custom tooltip with explanations
-  const CustomTooltip = ({ active, payload }: any) => {
-    if (active && payload && payload.length) {
-      const { timestamp, price, rsi, macd, macdSignal, macdHistogram, upperBand, lowerBand } = payload[0].payload;
-      
-      // Get previous price for comparison
-      const currentIndex = chartData.findIndex(d => d.timestamp === timestamp);
-      const previousPrice = currentIndex > 0 ? chartData[currentIndex - 1].price : price;
-
-      return (
-        <Paper elevation={3} sx={{ p: 2, maxWidth: 400 }}>
-          <Stack spacing={2}>
-            <Typography variant="subtitle2">
-              {formatTimestamp(timestamp)}
-            </Typography>
-            
-            {/* Price Explanation */}
-            <Stack spacing={1}>
-              <Typography variant="body2">
-                <strong>Price:</strong> ${price.toFixed(2)}
-              </Typography>
-              <Typography variant="caption" color="text.secondary">
-                {explainPriceMovement(price, previousPrice)}
-              </Typography>
-            </Stack>
-
-            {/* RSI Explanation */}
-            {rsi && (
-              <Stack spacing={1}>
-                <Typography variant="body2">
-                  <strong>RSI:</strong> {rsi.toFixed(1)}
-                </Typography>
-                <Typography variant="caption" color="text.secondary">
-                  {explainRSI(rsi)}
-                </Typography>
-              </Stack>
-            )}
-
-            {/* MACD Explanation */}
-            {macd && macdSignal && (
-              <Stack spacing={1}>
-                <Typography variant="body2">
-                  <strong>MACD:</strong> {macd.toFixed(1)} / {macdSignal.toFixed(1)}
-                </Typography>
-                <Typography variant="caption" color="text.secondary">
-                  {explainMACD(macd, macdSignal, macdHistogram)}
-                </Typography>
-              </Stack>
-            )}
-
-            {/* Bollinger Bands Explanation */}
-            {upperBand && lowerBand && (
-              <Stack spacing={1}>
-                <Typography variant="body2">
-                  <strong>Bollinger Bands:</strong> {lowerBand.toFixed(2)} - {upperBand.toFixed(2)}
-                </Typography>
-                <Typography variant="caption" color="text.secondary">
-                  {explainBollinger(price, upperBand, lowerBand)}
-                </Typography>
-              </Stack>
-            )}
-          </Stack>
-        </Paper>
-      );
-    }
-    return null;
-  };
-
-  // Loading state
   if (isLoading) {
     return (
       <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: 400 }}>
@@ -229,7 +178,6 @@ export const PriceChart: React.FC<PriceChartProps> = ({ assets, onAssetChange })
     );
   }
 
-  // No data state
   if (chartData.length === 0) {
     return (
       <Box sx={{ p: 2, textAlign: 'center' }}>
@@ -240,100 +188,89 @@ export const PriceChart: React.FC<PriceChartProps> = ({ assets, onAssetChange })
 
   return (
     <Box sx={{ p: 2 }}>
-      {/* Controls */}
       <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 2 }}>
         <FormControl size="small" sx={{ minWidth: 120 }}>
           <InputLabel>Asset</InputLabel>
           <Select
             value={selectedAsset.symbol}
             onChange={(e) => {
-              const newAsset = assets.find((a) => a.symbol === e.target.value) || assets[0];
+              const newAsset = assetsToUse.find((a) => a.symbol === e.target.value) || assetsToUse[0];
               onAssetChange(newAsset);
+              dispatch(setSelectedAsset(newAsset));
             }}
             label="Asset"
           >
-            {assets.map((asset) => (
-              <MenuItem key={asset.symbol} value={asset.symbol}>
-                {asset.name} ({asset.symbol})
-              </MenuItem>
-            ))}
+          {assetsToUse.map((asset) => (
+            <MenuItem key={asset.symbol} value={asset.symbol}>
+              {asset.name} ({asset.symbol})
+            </MenuItem>
+          ))}
           </Select>
         </FormControl>
 
-        <Stack direction="row" spacing={2}>
-          <FormControlLabel
-            control={
-              <Checkbox
-                checked={chartConfig.rsi.enabled}
-                onChange={() => {
-                  // Dispatch action to toggle RSI
-                }}
-              />
-            }
-            label={
-              <MuiTooltip title="RSI measures price momentum. Values above 70 indicate overbought conditions, while values below 30 indicate oversold conditions.">
-                <span>RSI</span>
-              </MuiTooltip>
-            }
-          />
-          <FormControlLabel
-            control={
-              <Checkbox
-                checked={chartConfig.macd.enabled}
-                onChange={() => {
-                  // Dispatch action to toggle MACD
-                }}
-              />
-            }
-            label={
-              <MuiTooltip title="MACD shows the relationship between two moving averages of prices. A positive histogram indicates upward momentum, while a negative histogram indicates downward momentum.">
-                <span>MACD</span>
-              </MuiTooltip>
-            }
-          />
-          <FormControlLabel
-            control={
-              <Checkbox
-                checked={chartConfig.bollingerBands.enabled}
-                onChange={() => {
-                  // Dispatch action to toggle Bollinger Bands
-                }}
-              />
-            }
-            label={
-              <MuiTooltip title="Bollinger Bands consist of a moving average and two standard deviations. Prices tend to stay within the bands, with breakouts indicating potential trend changes.">
-                <span>Bollinger Bands</span>
-              </MuiTooltip>
-            }
-          />
-        </Stack>
+        <FormControl size="small" sx={{ minWidth: 200 }}>
+          <InputLabel>Indicators</InputLabel>
+          <Select
+            multiple
+            value={Object.entries(chartConfig)
+              .filter(([key, value]) => value.enabled)
+              .map(([key]) => key)}
+            onChange={(e) => {
+              const selected = e.target.value as string[];
+              Object.keys(chartConfig).forEach((key) => {
+                const k = key as keyof typeof chartConfig;
+                const shouldBeEnabled = selected.includes(k);
+                if (chartConfig[k].enabled !== shouldBeEnabled) {
+                  dispatch(toggleIndicator(k));
+                }
+              });
+            }}
+            label="Indicators"
+            renderValue={(selected) => (selected as string[]).join(', ')}
+          >
+              {[
+                { key: 'rsi', label: 'RSI', tooltip: 'RSI measures price momentum. Values above 70 indicate overbought conditions, while values below 30 indicate oversold conditions.' },
+                { key: 'macd', label: 'MACD', tooltip: 'MACD shows the relationship between two moving averages of prices. A positive histogram indicates upward momentum, while a negative histogram indicates downward momentum.' },
+                { key: 'bollingerBands', label: 'Bollinger Bands', tooltip: 'Bollinger Bands consist of a moving average and two standard deviations. Prices tend to stay within the bands, with breakouts indicating potential trend changes.' },
+                { key: 'adx', label: 'ADX', tooltip: 'Average Directional Index measures trend strength.' },
+                { key: 'obv', label: 'OBV', tooltip: 'On-Balance Volume uses volume to predict price changes.' },
+                { key: 'vwap', label: 'VWAP', tooltip: 'Volume Weighted Average Price calculates the average price weighted by volume.' },
+                { key: 'atr', label: 'ATR', tooltip: 'Average True Range measures market volatility.' },
+                { key: 'cci', label: 'CCI', tooltip: 'Commodity Channel Index identifies cyclical trends.' },
+                { key: 'stoch', label: 'Stochastic Oscillator', tooltip: 'Compares closing price to price range over time.' },
+                { key: 'roc', label: 'ROC', tooltip: 'Measures speed of price change.' },
+                { key: 'mfi', label: 'Money Flow Index', tooltip: 'Combines price and volume.' },
+              ].map(({ key, label, tooltip }) => {
+                const k = key as keyof typeof chartConfig;
+                return (
+                  <MenuItem key={key} value={key}>
+                    <Checkbox
+                      checked={chartConfig[k]?.enabled || false}
+                      onChange={() => dispatch(toggleIndicator(k))}
+                      onClick={(e) => e.stopPropagation()}
+                    />
+                    <MuiTooltip title={tooltip}>
+                      <span>{label}</span>
+                    </MuiTooltip>
+                  </MenuItem>
+                );
+              })}
+          </Select>
+        </FormControl>
 
-        {/* Zoom controls */}
         <Stack direction="row" spacing={1}>
-          <MuiTooltip title="Zoom In">
-            <IconButton onClick={() => setZoomLevel(zoomLevel * 1.5)}>
-              <ZoomIn />
-            </IconButton>
-          </MuiTooltip>
-          <MuiTooltip title="Zoom Out">
-            <IconButton onClick={() => setZoomLevel(zoomLevel / 1.5)}>
-              <ZoomOut />
-            </IconButton>
-          </MuiTooltip>
-          <MuiTooltip title="Fullscreen">
-            <IconButton onClick={() => setIsFullscreen(!isFullscreen)}>
-              {isFullscreen ? <FullscreenExit /> : <Fullscreen />}
-            </IconButton>
-          </MuiTooltip>
-          <MuiTooltip title="Show explanations">
-            <IconButton onClick={() => setHoveredPoint(null)}>
-              <Info />
-            </IconButton>
-          </MuiTooltip>
+          <IconButton onClick={() => setZoomLevel(zoomLevel * 1.5)} title="Zoom In">
+            <ZoomIn />
+          </IconButton>
+          <IconButton onClick={() => setZoomLevel(zoomLevel / 1.5)} title="Zoom Out">
+            <ZoomOut />
+          </IconButton>
+          <IconButton onClick={() => setIsFullscreen(!isFullscreen)} title="Fullscreen">
+            {isFullscreen ? <FullscreenExit /> : <Fullscreen />}
+          </IconButton>
         </Stack>
       </Box>
 
-      {/* Chart container */}
       <Box
         sx={{
           height: isFullscreen ? '90vh' : 400,
@@ -350,14 +287,15 @@ export const PriceChart: React.FC<PriceChartProps> = ({ assets, onAssetChange })
             onMouseMove={(e) => {
               const point = e.activePayload?.[0];
               if (point) {
-                setHoveredPoint(point);
+                // No action needed
               }
             }}
-            onMouseLeave={() => setHoveredPoint(null)}
+            onMouseLeave={() => {
+              // No action needed
+            }}
           >
             <CartesianGrid strokeDasharray="3 3" />
-            
-            {/* Price line */}
+
             <Line
               type="monotone"
               dataKey="price"
@@ -365,10 +303,9 @@ export const PriceChart: React.FC<PriceChartProps> = ({ assets, onAssetChange })
               stroke="#2196f3"
               strokeWidth={2}
               animationDuration={500}
-              animationEasing="easeOutQuart"
+              animationEasing="ease-out"
             />
 
-            {/* RSI */}
             {chartConfig.rsi.enabled && (
               <Line
                 type="monotone"
@@ -377,11 +314,10 @@ export const PriceChart: React.FC<PriceChartProps> = ({ assets, onAssetChange })
                 stroke="#f44336"
                 strokeWidth={1}
                 animationDuration={500}
-                animationEasing="easeOutQuart"
+                animationEasing="ease-out"
               />
             )}
 
-            {/* MACD */}
             {chartConfig.macd.enabled && (
               <>
                 <Line
@@ -391,7 +327,7 @@ export const PriceChart: React.FC<PriceChartProps> = ({ assets, onAssetChange })
                   stroke="#4caf50"
                   strokeWidth={1}
                   animationDuration={500}
-                  animationEasing="easeOutQuart"
+                  animationEasing="ease-out"
                 />
                 <Line
                   type="monotone"
@@ -400,7 +336,7 @@ export const PriceChart: React.FC<PriceChartProps> = ({ assets, onAssetChange })
                   stroke="#9c27b0"
                   strokeWidth={1}
                   animationDuration={500}
-                  animationEasing="easeOutQuart"
+                  animationEasing="ease-out"
                 />
                 <Area
                   type="monotone"
@@ -413,7 +349,6 @@ export const PriceChart: React.FC<PriceChartProps> = ({ assets, onAssetChange })
               </>
             )}
 
-            {/* Bollinger Bands */}
             {chartConfig.bollingerBands.enabled && (
               <>
                 <Line
@@ -423,7 +358,7 @@ export const PriceChart: React.FC<PriceChartProps> = ({ assets, onAssetChange })
                   stroke="#ff9800"
                   strokeWidth={1}
                   animationDuration={500}
-                  animationEasing="easeOutQuart"
+                  animationEasing="ease-out"
                 />
                 <Line
                   type="monotone"
@@ -432,9 +367,105 @@ export const PriceChart: React.FC<PriceChartProps> = ({ assets, onAssetChange })
                   stroke="#ff9800"
                   strokeWidth={1}
                   animationDuration={500}
-                  animationEasing="easeOutQuart"
+                  animationEasing="ease-out"
                 />
               </>
+            )}
+
+            {chartConfig.adx.enabled && (
+              <Line
+                type="monotone"
+                dataKey="adx"
+                name="ADX"
+                stroke={chartConfig.adx.color}
+                strokeWidth={chartConfig.adx.lineWidth}
+                animationDuration={500}
+                animationEasing="ease-out"
+              />
+            )}
+
+            {chartConfig.obv.enabled && (
+              <Line
+                type="monotone"
+                dataKey="obv"
+                name="OBV"
+                stroke={chartConfig.obv.color}
+                strokeWidth={chartConfig.obv.lineWidth}
+                animationDuration={500}
+                animationEasing="ease-out"
+              />
+            )}
+
+            {chartConfig.vwap.enabled && (
+              <Line
+                type="monotone"
+                dataKey="vwap"
+                name="VWAP"
+                stroke={chartConfig.vwap.color}
+                strokeWidth={chartConfig.vwap.lineWidth}
+                animationDuration={500}
+                animationEasing="ease-out"
+              />
+            )}
+
+            {chartConfig.atr.enabled && (
+              <Line
+                type="monotone"
+                dataKey="atr"
+                name="ATR"
+                stroke={chartConfig.atr.color}
+                strokeWidth={chartConfig.atr.lineWidth}
+                animationDuration={500}
+                animationEasing="ease-out"
+              />
+            )}
+
+            {chartConfig.cci.enabled && (
+              <Line
+                type="monotone"
+                dataKey="cci"
+                name="CCI"
+                stroke={chartConfig.cci.color}
+                strokeWidth={chartConfig.cci.lineWidth}
+                animationDuration={500}
+                animationEasing="ease-out"
+              />
+            )}
+
+            {chartConfig.stoch.enabled && (
+              <Line
+                type="monotone"
+                dataKey="stoch"
+                name="Stochastic Oscillator"
+                stroke={chartConfig.stoch.color}
+                strokeWidth={chartConfig.stoch.lineWidth}
+                animationDuration={500}
+                animationEasing="ease-out"
+              />
+            )}
+
+            {chartConfig.roc.enabled && (
+              <Line
+                type="monotone"
+                dataKey="roc"
+                name="ROC"
+                stroke={chartConfig.roc.color}
+                strokeWidth={chartConfig.roc.lineWidth}
+                animationDuration={500}
+                animationEasing="ease-out"
+              />
+            )}
+
+            {chartConfig.mfi.enabled && (
+              <Line
+                type="monotone"
+                dataKey="mfi"
+                name="MFI"
+                stroke={chartConfig.mfi.color}
+                strokeWidth={chartConfig.mfi.lineWidth}
+                animationDuration={500}
+                animationEasing="ease-out"
+              />
             )}
 
             <XAxis
@@ -443,7 +474,7 @@ export const PriceChart: React.FC<PriceChartProps> = ({ assets, onAssetChange })
               angle={-45}
               textAnchor="end"
               type="number"
-              domain={brushDomain.length ? brushDomain : [0, 'dataMax']}
+              domain={xAxisDomain}
             />
             <YAxis />
             <Tooltip content={<CustomTooltip />} />
@@ -453,7 +484,7 @@ export const PriceChart: React.FC<PriceChartProps> = ({ assets, onAssetChange })
               height={30}
               stroke="#8884d8"
               onChange={handleBrushDomainChange}
-              onEnd={handleBrushDomainChange}
+              onEnded={handleBrushDomainChange}
             />
           </LineChart>
         </ResponsiveContainer>

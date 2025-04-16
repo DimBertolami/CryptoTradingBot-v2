@@ -1,10 +1,10 @@
-import React from 'react';
-import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+
+import { Routes, Route } from 'react-router-dom';
 import { ThemeProvider, createTheme } from '@mui/material/styles';
 import CssBaseline from '@mui/material/CssBaseline';
-import { QueryClient, QueryClientProvider } from 'react-query';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Provider } from 'react-redux';
-import store from './app/store';
+import { store } from './app/store';
 
 // Components
 import Layout from './components/Layout';
@@ -33,16 +33,14 @@ function App() {
       <QueryClientProvider client={queryClient}>
         <ThemeProvider theme={theme}>
           <CssBaseline />
-          <Router>
-            <Layout>
-              <Routes>
-                <Route path="/" element={<Dashboard />} />
-                <Route path="/trading" element={<Trading />} />
-                <Route path="/risk" element={<RiskManagement />} />
-                <Route path="/settings" element={<Settings />} />
-              </Routes>
-            </Layout>
-          </Router>
+          <Layout>
+            <Routes>
+              <Route path="/" element={<Dashboard />} />
+              <Route path="/trading" element={<Trading />} />
+              <Route path="/risk" element={<RiskManagement />} />
+              <Route path="/settings" element={<Settings />} />
+            </Routes>
+          </Layout>
         </ThemeProvider>
       </QueryClientProvider>
     </Provider>

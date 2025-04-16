@@ -3,6 +3,7 @@ import { CryptoAsset, ChartConfig } from '../../types/chart';
 
 const initialState = {
   selectedAsset: {
+    id: 'bitcoin',
     symbol: 'BTC',
     name: 'Bitcoin',
     balance: 0,
@@ -10,18 +11,58 @@ const initialState = {
   } as CryptoAsset,
   config: {
     rsi: {
-      enabled: true,
+      enabled: false,
       color: '#f44336',
       lineWidth: 1,
     },
     macd: {
-      enabled: true,
+      enabled: false,
       color: '#4caf50',
       lineWidth: 1,
     },
     bollingerBands: {
-      enabled: true,
+      enabled: false,
       color: '#ff9800',
+      lineWidth: 1,
+    },
+    adx: {
+      enabled: false,
+      color: '#9c27b0',
+      lineWidth: 1,
+    },
+    obv: {
+      enabled: false,
+      color: '#3f51b5',
+      lineWidth: 1,
+    },
+    vwap: {
+      enabled: false,
+      color: '#00bcd4',
+      lineWidth: 1,
+    },
+    atr: {
+      enabled: false,
+      color: '#ff5722',
+      lineWidth: 1,
+    },
+    cci: {
+      enabled: false,
+      color: '#795548',
+      lineWidth: 1,
+    },
+    stoch: {
+      enabled: false,
+      color: '#607d8b',
+      lineWidth: 1,
+    },
+    roc: {
+      enabled: false,
+      color: '#009688',
+      lineWidth: 1,
+    },
+    mfi: {
+      enabled: false,
+      color: '#8bc34a',
       lineWidth: 1,
     },
   } as ChartConfig,

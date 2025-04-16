@@ -1,5 +1,5 @@
 import { ChartData } from '../types/chart';
-import { SMA, EMA, RSI, MACD, BBANDS } from 'technicalindicators';
+import { SMA, EMA } from 'technicalindicators';
 
 // Calculate RSI with trading signals
 export const calculateRSI = (data: ChartData[], period = 14): {

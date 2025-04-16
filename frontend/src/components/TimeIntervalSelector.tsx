@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React from 'react';
 import {
   Box,
   ButtonGroup,
@@ -7,11 +7,11 @@ import {
   createTheme,
   ThemeProvider,
 } from '@mui/material';
-import { useAppDispatch, useAppSelector } from '../../app/hooks';
+import { useAppDispatch, useAppSelector } from '../app/hooks';
 import {
   selectTimeInterval,
   setTimeInterval,
-} from '../../features/timeInterval/timeIntervalSlice';
+} from '../features/timeInterval/timeIntervalSlice';
 
 // Define time intervals with their display names and API values
 export type TimeInterval = '1m' | '5m' | '10m' | '30m' | '1h' | '1d' | '1y';
@@ -77,7 +77,7 @@ export const TimeIntervalSelector: React.FC<TimeIntervalSelectorProps> = ({ onCh
             <Button
               key={key}
               onClick={() => handleIntervalChange(value)}
-              selected={currentInterval === value}
+              variant={currentInterval === value ? 'contained' : 'outlined'}
             >
               {label}
             </Button>

@@ -1,0 +1,10 @@
+npm ERR! code ENOENT
+npm ERR! syscall open
+npm ERR! path /home/dim/git/bot-v2/scripts/frontend/package.json
+npm ERR! errno -2
+npm ERR! enoent ENOENT: no such file or directory, open '/home/dim/git/bot-v2/scripts/frontend/package.json'
+npm ERR! enoent This is related to npm not being able to find a file.
+npm ERR! enoent 
+
+npm ERR! A complete log of this run can be found in:
+npm ERR!     /home/dim/.npm/_logs/2025-04-15T22_51_18_816Z-debug-0.log

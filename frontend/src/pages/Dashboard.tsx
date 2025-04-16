@@ -8,27 +8,40 @@ import {
   Card,
   CardContent,
 } from '@mui/material';
-import { useQuery } from 'react-query';
+import { useQuery } from '@tanstack/react-query';
 import { fetchStatus } from '../api/status';
 import TimeIntervalSelector from '../components/TimeIntervalSelector';
 import PriceChart from '../components/PriceChart';
 import { useAppDispatch, useAppSelector } from '../app/hooks';
 import { setSelectedAsset } from '../features/chart/chartSlice';
+import { CryptoAsset } from '../types/chart';
+
+interface StatusResponse {
+  status: string;
+}
+
+const safeWalletAssetsSelector = (state: any) => {
+  try {
+    return state.wallet.assets;
+  } catch {
+    return [];
+  }
+};
 
 const Dashboard: React.FC = () => {
   const dispatch = useAppDispatch();
   const selectedInterval = useAppSelector((state) => state.timeInterval.interval);
-  const assets = useAppSelector((state) => state.wallet.assets);
+  const assets = useAppSelector(safeWalletAssetsSelector);
 
-  const { data: backendStatus, isLoading: isBackendLoading } = useQuery(
-    'backendStatus',
-    () => fetchStatus('/api/v1/status/backend')
-  );
+  const { data: backendStatus, isLoading: isBackendLoading } = useQuery<StatusResponse>({
+    queryKey: ['backendStatus'],
+    queryFn: () => fetchStatus('/api/v1/status/backend'),
+  });
 
-  const { data: tradingStatus, isLoading: isTradingLoading } = useQuery(
-    'tradingStatus',
-    () => fetchStatus('/api/v1/status/trading')
-  );
+  const { data: tradingStatus, isLoading: isTradingLoading } = useQuery<StatusResponse>({
+    queryKey: ['tradingStatus'],
+    queryFn: () => fetchStatus('/api/v1/trading/status'),
+  });
 
   const getStatusColor = (status: string) => {
     switch (status) {
