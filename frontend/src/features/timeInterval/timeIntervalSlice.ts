@@ -1,6 +1,6 @@
 import { createSlice, PayloadAction } from '@reduxjs/toolkit';
 
-export type TimeInterval = '1m' | '5m' | '10m' | '30m' | '1h' | '1d' | '1y';
+export type TimeInterval = '1m' | '5m' | '10m' | '30m' | '1h' | '1d' | '1w' | '1M' | '3M' | '6M' | '1y';
 
 interface TimeIntervalState {
   interval: TimeInterval;

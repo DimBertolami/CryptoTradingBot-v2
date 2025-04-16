@@ -80,6 +80,19 @@ const CustomTooltip: React.FC<TooltipProps<number, string>> = ({ active, payload
 export const PriceChart: React.FC<PriceChartProps> = ({ assets, onAssetChange }) => {
   const dispatch = useAppDispatch();
 
+  // State to track which indicator line is highlighted
+  const [highlightedLineKey, setHighlightedLineKey] = useState<string | null>(null);
+
+  // Enable default indicators on mount if not already enabled
+  useEffect(() => {
+    const defaultIndicators = ['rsi', 'macd', 'bollingerBands', 'vwap'];
+    defaultIndicators.forEach((indicator) => {
+      if (!chartConfig[indicator as keyof typeof chartConfig]?.enabled) {
+        dispatch(toggleIndicator(indicator as keyof typeof chartConfig));
+      }
+    });
+  }, []); // Run once on mount
+
   // Mock data for assets if none provided
   const mockAssets: CryptoAsset[] = [
     { id: 'bitcoin', name: 'Bitcoin', symbol: 'BTC', balance: 0, price: 0 },
@@ -101,6 +114,34 @@ export const PriceChart: React.FC<PriceChartProps> = ({ assets, onAssetChange })
   const [brushDomain, setBrushDomain] = useState<number[]>([]);
 
   const chartRef = useRef<any>(null);
+
+  // Custom dot component for indicator lines with click handler
+  const CustomDot: React.FC<any> = (props) => {
+    const { cx, cy, stroke, dataKey } = props;
+    if (cx === undefined || cy === undefined) return null;
+
+    const handleClick = (e: React.MouseEvent<SVGCircleElement, MouseEvent>) => {
+      e.stopPropagation();
+      if (highlightedLineKey === dataKey) {
+        setHighlightedLineKey(null);
+      } else {
+        setHighlightedLineKey(dataKey);
+      }
+    };
+
+    return (
+      <circle
+        cx={cx}
+        cy={cy}
+        r={4}
+        fill="white"
+        stroke={stroke}
+        strokeWidth={highlightedLineKey === dataKey ? 4 : 2}
+        style={{ cursor: 'pointer' }}
+        onClick={handleClick}
+      />
+    );
+  };
 
   const handleBrushDomainChange = (newIndex: any) => {
     if (newIndex.startIndex !== undefined && newIndex.endIndex !== undefined) {
@@ -408,7 +449,9 @@ export const PriceChart: React.FC<PriceChartProps> = ({ assets, onAssetChange })
                   dataKey="rsi"
                   name="RSI"
                   stroke="#f44336"
-                  strokeWidth={1}
+                  strokeWidth={highlightedLineKey === 'rsi' ? 3 : 1}
+                  strokeDasharray="5 5"
+                  dot={<CustomDot dataKey="rsi" />}
                   animationDuration={500}
                   animationEasing="ease-out"
                 />
@@ -420,8 +463,10 @@ export const PriceChart: React.FC<PriceChartProps> = ({ assets, onAssetChange })
                     type="monotone"
                     dataKey="macd"
                     name="MACD"
-                    stroke="#ff9800" // changed to orange
-                    strokeWidth={1}
+                    stroke="#8B4513" // changed to brown
+                    strokeWidth={highlightedLineKey === 'macd' ? 3 : 1}
+                    strokeDasharray="5 2"
+                    dot={<CustomDot dataKey="macd" />}
                     animationDuration={500}
                     animationEasing="ease-out"
                   />
@@ -430,7 +475,9 @@ export const PriceChart: React.FC<PriceChartProps> = ({ assets, onAssetChange })
                     dataKey="macdSignal"
                     name="MACD Signal"
                     stroke="#9c27b0" // purple
-                    strokeWidth={1}
+                    strokeWidth={highlightedLineKey === 'macdSignal' ? 3 : 1}
+                    strokeDasharray="2 2"
+                    dot={<CustomDot dataKey="macdSignal" />}
                     animationDuration={500}
                     animationEasing="ease-out"
                   />
@@ -452,7 +499,9 @@ export const PriceChart: React.FC<PriceChartProps> = ({ assets, onAssetChange })
                     dataKey="upperBand"
                     name="Upper Band"
                     stroke="#ff9800"
-                    strokeWidth={1}
+                    strokeWidth={highlightedLineKey === 'upperBand' ? 3 : 1}
+                    strokeDasharray="3 3"
+                    dot={<CustomDot dataKey="upperBand" />}
                     animationDuration={500}
                     animationEasing="ease-out"
                   />
@@ -461,7 +510,9 @@ export const PriceChart: React.FC<PriceChartProps> = ({ assets, onAssetChange })
                     dataKey="lowerBand"
                     name="Lower Band"
                     stroke="#ff9800"
-                    strokeWidth={1}
+                    strokeWidth={highlightedLineKey === 'lowerBand' ? 3 : 1}
+                    strokeDasharray="3 3"
+                    dot={<CustomDot dataKey="lowerBand" />}
                     animationDuration={500}
                     animationEasing="ease-out"
                   />
@@ -474,7 +525,9 @@ export const PriceChart: React.FC<PriceChartProps> = ({ assets, onAssetChange })
                   dataKey="adx"
                   name="ADX"
                   stroke={chartConfig.adx.color}
-                  strokeWidth={chartConfig.adx.lineWidth}
+                  strokeWidth={highlightedLineKey === 'adx' ? 3 : chartConfig.adx.lineWidth}
+                  strokeDasharray="4 2"
+                  dot={<CustomDot dataKey="adx" />}
                   animationDuration={500}
                   animationEasing="ease-out"
                 />
@@ -486,7 +539,9 @@ export const PriceChart: React.FC<PriceChartProps> = ({ assets, onAssetChange })
                   dataKey="obv"
                   name="OBV"
                   stroke={chartConfig.obv.color}
-                  strokeWidth={chartConfig.obv.lineWidth}
+                  strokeWidth={highlightedLineKey === 'obv' ? 3 : chartConfig.obv.lineWidth}
+                  strokeDasharray="2 4"
+                  dot={<CustomDot dataKey="obv" />}
                   animationDuration={500}
                   animationEasing="ease-out"
                 />
@@ -498,7 +553,9 @@ export const PriceChart: React.FC<PriceChartProps> = ({ assets, onAssetChange })
                   dataKey="vwap"
                   name="VWAP"
                   stroke={chartConfig.vwap.color}
-                  strokeWidth={chartConfig.vwap.lineWidth}
+                  strokeWidth={highlightedLineKey === 'vwap' ? 3 : chartConfig.vwap.lineWidth}
+                  strokeDasharray="6 3"
+                  dot={<CustomDot dataKey="vwap" />}
                   animationDuration={500}
                   animationEasing="ease-out"
                 />
@@ -510,7 +567,9 @@ export const PriceChart: React.FC<PriceChartProps> = ({ assets, onAssetChange })
                   dataKey="atr"
                   name="ATR"
                   stroke={chartConfig.atr.color}
-                  strokeWidth={chartConfig.atr.lineWidth}
+                  strokeWidth={highlightedLineKey === 'atr' ? 3 : chartConfig.atr.lineWidth}
+                  strokeDasharray="1 3"
+                  dot={<CustomDot dataKey="atr" />}
                   animationDuration={500}
                   animationEasing="ease-out"
                 />
@@ -522,7 +581,9 @@ export const PriceChart: React.FC<PriceChartProps> = ({ assets, onAssetChange })
                   dataKey="cci"
                   name="CCI"
                   stroke={chartConfig.cci.color}
-                  strokeWidth={chartConfig.cci.lineWidth}
+                  strokeWidth={highlightedLineKey === 'cci' ? 3 : chartConfig.cci.lineWidth}
+                  strokeDasharray="4 4"
+                  dot={<CustomDot dataKey="cci" />}
                   animationDuration={500}
                   animationEasing="ease-out"
                 />
@@ -534,7 +595,9 @@ export const PriceChart: React.FC<PriceChartProps> = ({ assets, onAssetChange })
                   dataKey="stoch"
                   name="Stochastic Oscillator"
                   stroke={chartConfig.stoch.color}
-                  strokeWidth={chartConfig.stoch.lineWidth}
+                  strokeWidth={highlightedLineKey === 'stoch' ? 3 : chartConfig.stoch.lineWidth}
+                  strokeDasharray="3 1 1 1"
+                  dot={<CustomDot dataKey="stoch" />}
                   animationDuration={500}
                   animationEasing="ease-out"
                 />
@@ -546,7 +609,9 @@ export const PriceChart: React.FC<PriceChartProps> = ({ assets, onAssetChange })
                   dataKey="roc"
                   name="ROC"
                   stroke={chartConfig.roc.color}
-                  strokeWidth={chartConfig.roc.lineWidth}
+                  strokeWidth={highlightedLineKey === 'roc' ? 3 : chartConfig.roc.lineWidth}
+                  strokeDasharray="5 1"
+                  dot={<CustomDot dataKey="roc" />}
                   animationDuration={500}
                   animationEasing="ease-out"
                 />
@@ -558,7 +623,9 @@ export const PriceChart: React.FC<PriceChartProps> = ({ assets, onAssetChange })
                   dataKey="mfi"
                   name="MFI"
                   stroke={chartConfig.mfi.color}
-                  strokeWidth={chartConfig.mfi.lineWidth}
+                  strokeWidth={highlightedLineKey === 'mfi' ? 3 : chartConfig.mfi.lineWidth}
+                  strokeDasharray="2 2 6 2"
+                  dot={<CustomDot dataKey="mfi" />}
                   animationDuration={500}
                   animationEasing="ease-out"
                 />

@@ -13,9 +13,9 @@ import {
   setTimeInterval,
 } from '../features/timeInterval/timeIntervalSlice';
 
-// Define time intervals with their display names and API values
-export type TimeInterval = '1m' | '5m' | '10m' | '30m' | '1h' | '1d' | '1y';
+import { TimeInterval } from '../features/timeInterval/timeIntervalSlice';
 
+// Define time intervals with their display names and API values
 const timeIntervals: { [key: string]: { label: string; value: TimeInterval } } = {
   '1m': { label: '1m', value: '1m' },
   '5m': { label: '5m', value: '5m' },

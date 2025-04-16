@@ -11,17 +11,17 @@ const initialState = {
   } as CryptoAsset,
   config: {
     rsi: {
-      enabled: false,
+      enabled: true,
       color: '#f44336',
       lineWidth: 1,
     },
     macd: {
-      enabled: false,
+      enabled: true,
       color: '#ff9800', // changed to orange
       lineWidth: 1,
     },
     bollingerBands: {
-      enabled: false,
+      enabled: true,
       color: '#ff9800',
       lineWidth: 1,
     },
@@ -36,7 +36,7 @@ const initialState = {
       lineWidth: 1,
     },
     vwap: {
-      enabled: false,
+      enabled: true,
       color: '#00bcd4',
       lineWidth: 1,
     },
