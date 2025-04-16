@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import {
   LineChart,
+  ComposedChart,
   Line,
   XAxis,
   YAxis,
@@ -11,6 +12,7 @@ import {
   Brush,
   Area,
   TooltipProps,
+  Bar,
 } from 'recharts';
 import {
   Box,
@@ -48,7 +50,7 @@ interface PriceChartProps {
 const CustomTooltip: React.FC<TooltipProps<number, string>> = ({ active, payload, label }) => {
   if (active && payload && payload.length > 0 && payload[0].payload) {
     const data = payload[0].payload;
-    const { name, marketCap, price, volume } = data;
+    const { name, price, volume } = data;
 
     return (
       <Paper elevation={3} sx={{ p: 2, maxWidth: 400 }}>
@@ -112,53 +114,72 @@ export const PriceChart: React.FC<PriceChartProps> = ({ assets, onAssetChange })
   }, [timeInterval, dispatch]);
 
   const xAxisDomain = React.useMemo(() => {
-    if (brushDomain.length === 2 && chartData.length > 0) {
+    if (chartData.length === 0) {
+      return [0, 0];
+    }
+
+    let startTimestamp: number;
+    let endTimestamp: number;
+
+    if (brushDomain.length === 2) {
       const startIndex = brushDomain[0];
       const endIndex = brushDomain[1];
-      const startTimestamp = chartData[startIndex]?.timestamp || 0;
-      const endTimestamp = chartData[endIndex]?.timestamp || chartData[chartData.length - 1].timestamp;
-      return [startTimestamp, endTimestamp];
+      startTimestamp = chartData[startIndex]?.timestamp || 0;
+      endTimestamp = chartData[endIndex]?.timestamp || chartData[chartData.length - 1].timestamp;
+    } else {
+      startTimestamp = chartData[0]?.timestamp || 0;
+      endTimestamp = chartData[chartData.length - 1]?.timestamp || 0;
     }
-    return [chartData[0]?.timestamp || 0, chartData[chartData.length - 1]?.timestamp || 0];
-  }, [brushDomain, chartData]);
+
+    // Calculate zoomed domain
+    const center = (startTimestamp + endTimestamp) / 2;
+    const range = (endTimestamp - startTimestamp) / zoomLevel;
+    const zoomedStart = center - range / 2;
+    const zoomedEnd = center + range / 2;
+
+    return [zoomedStart, zoomedEnd];
+  }, [brushDomain, chartData, zoomLevel]);
+
+  const fetchChartData = async () => {
+    if (!selectedAsset.id) return;
+
+    setIsLoading(true);
+    try {
+      // Map timeInterval to days for API call
+      const intervalToDaysMap: { [key: string]: number } = {
+        '1m': 1,
+        '5m': 1,
+        '30m': 1,
+        '1h': 1,
+        '1d': 1,
+        '1w': 7,
+        '1M': 30,
+        '3M': 90,
+        '6M': 180,
+        '1y': 365,
+      };
+
+      const days = intervalToDaysMap[timeInterval] || 30;
+
+      const data = await coingeckoApi.getHistoricalData(
+        selectedAsset.id,
+        days,
+        timeInterval
+      );
+
+      // Filter out data points with zero or invalid price
+      const filteredData = data.filter((point: any) => point.price && point.price > 0);
+
+      const { data: dataWithIndicators } = calculateAllIndicators(filteredData);
+      setChartData(dataWithIndicators);
+    } catch (error) {
+      console.error('Error fetching chart data:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   useEffect(() => {
-    const fetchChartData = async () => {
-      if (!selectedAsset.id) return;
-
-      setIsLoading(true);
-      try {
-        // Map timeInterval to days for API call
-        const intervalToDaysMap: { [key: string]: number } = {
-          '1m': 1,
-          '5m': 1,
-          '30m': 1,
-          '1h': 1,
-          '1d': 1,
-          '1w': 7,
-          '1M': 30,
-          '3M': 90,
-          '6M': 180,
-          '1y': 365,
-        };
-
-        const days = intervalToDaysMap[timeInterval] || 30;
-
-        const data = await coingeckoApi.getHistoricalData(
-          selectedAsset.id,
-          days,
-          timeInterval
-        );
-
-        const { data: dataWithIndicators } = calculateAllIndicators(data);
-        setChartData(dataWithIndicators);
-      } catch (error) {
-        console.error('Error fetching chart data:', error);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
     fetchChartData();
   }, [selectedAsset.id, timeInterval]);
 
@@ -232,14 +253,9 @@ export const PriceChart: React.FC<PriceChartProps> = ({ assets, onAssetChange })
                 { key: 'rsi', label: 'RSI', tooltip: 'RSI measures price momentum. Values above 70 indicate overbought conditions, while values below 30 indicate oversold conditions.' },
                 { key: 'macd', label: 'MACD', tooltip: 'MACD shows the relationship between two moving averages of prices. A positive histogram indicates upward momentum, while a negative histogram indicates downward momentum.' },
                 { key: 'bollingerBands', label: 'Bollinger Bands', tooltip: 'Bollinger Bands consist of a moving average and two standard deviations. Prices tend to stay within the bands, with breakouts indicating potential trend changes.' },
-                { key: 'adx', label: 'ADX', tooltip: 'Average Directional Index measures trend strength.' },
-                { key: 'obv', label: 'OBV', tooltip: 'On-Balance Volume uses volume to predict price changes.' },
-                { key: 'vwap', label: 'VWAP', tooltip: 'Volume Weighted Average Price calculates the average price weighted by volume.' },
-                { key: 'atr', label: 'ATR', tooltip: 'Average True Range measures market volatility.' },
-                { key: 'cci', label: 'CCI', tooltip: 'Commodity Channel Index identifies cyclical trends.' },
-                { key: 'stoch', label: 'Stochastic Oscillator', tooltip: 'Compares closing price to price range over time.' },
-                { key: 'roc', label: 'ROC', tooltip: 'Measures speed of price change.' },
-                { key: 'mfi', label: 'Money Flow Index', tooltip: 'Combines price and volume.' },
+                { key: 'obv', label: 'On-Balance Volume uses volume to predict price changes.' },
+                { key: 'vwap', label: 'Volume Weighted Average Price calculates the average price weighted by volume.' },
+                { key: 'candlestick', label: 'Candlestick chart showing open, high, low, and close prices.' },
               ].map(({ key, label, tooltip }) => {
                 const k = key as keyof typeof chartConfig;
                 return (
@@ -277,216 +293,297 @@ export const PriceChart: React.FC<PriceChartProps> = ({ assets, onAssetChange })
           width: '100%',
           position: 'relative',
           overflow: 'hidden',
+          backgroundColor: '#d0f0ff', // very light skyblue background
         }}
       >
         <ResponsiveContainer width="100%" height="100%">
-          <LineChart
-            ref={chartRef}
-            data={chartData}
-            margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
-            onMouseMove={(e) => {
-              const point = e.activePayload?.[0];
-              if (point) {
+          {chartConfig.candlestick.enabled ? (
+            <ComposedChart
+              ref={chartRef}
+              data={chartData}
+              margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
+              onMouseMove={(e) => {
+                const point = e.activePayload?.[0];
+                if (point) {
+                  // No action needed
+                }
+              }}
+              onMouseLeave={() => {
                 // No action needed
-              }
-            }}
-            onMouseLeave={() => {
-              // No action needed
-            }}
-          >
-            <CartesianGrid strokeDasharray="3 3" />
+              }}
+            >
+              <CartesianGrid strokeDasharray="3 3" />
+              <XAxis
+                dataKey="timestamp"
+                tickFormatter={formatTimestamp}
+                angle={-45}
+                textAnchor="end"
+                type="number"
+                domain={xAxisDomain}
+              />
+              <YAxis />
+              <Tooltip content={<CustomTooltip />} />
+              <Legend />
+              <Brush
+                dataKey="timestamp"
+                height={30}
+                stroke="#8884d8"
+                onChange={handleBrushDomainChange}
+                onEnded={handleBrushDomainChange}
+              />
+              {/* Candlestick bars */}
+              <Bar
+                dataKey="close"
+                name="Candlestick"
+                // Removed fill="#2196f3" to avoid blue color
+                shape={(props: any) => {
+                  const { x, y, width, height, payload } = props;
+                  const open = payload.open;
+                  const close = payload.close;
+                  const high = payload.high;
+                  const low = payload.low;
+                  const barX = x;
+                  const barWidth = width;
+                  const barY = y;
+                  const barHeight = height;
 
-            <Line
-              type="monotone"
-              dataKey="price"
-              name="Price"
-              stroke="#2196f3"
-              strokeWidth={2}
-              animationDuration={500}
-              animationEasing="ease-out"
-            />
+                  const candleColor = close > open ? '#4caf50' : '#f44336';
+                  const candleHeight = Math.abs(y - barY);
 
-            {chartConfig.rsi.enabled && (
+                  // Draw candlestick body and wick using SVG elements
+                  return (
+                    <g>
+                      {/* Wick */}
+                      <line
+                        x1={barX + barWidth / 2}
+                        y1={y}
+                        x2={barX + barWidth / 2}
+                        y2={y + barHeight}
+                        stroke={candleColor}
+                        strokeWidth={1}
+                      />
+                      {/* Body */}
+                      <rect
+                        x={barX}
+                        y={close > open ? y : y + candleHeight}
+                        width={barWidth}
+                        height={candleHeight}
+                        fill={candleColor}
+                      />
+                    </g>
+                  );
+                }}
+              />
+            </ComposedChart>
+          ) : (
+            <LineChart
+              ref={chartRef}
+              data={chartData}
+              margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
+              onMouseMove={(e) => {
+                const point = e.activePayload?.[0];
+                if (point) {
+                  // No action needed
+                }
+              }}
+              onMouseLeave={() => {
+                // No action needed
+              }}
+            >
+              <CartesianGrid strokeDasharray="3 3" />
+
               <Line
                 type="monotone"
-                dataKey="rsi"
-                name="RSI"
-                stroke="#f44336"
-                strokeWidth={1}
+                dataKey="price"
+                name="Price"
+                stroke="#000000" // changed to black
+                strokeWidth={2}
                 animationDuration={500}
                 animationEasing="ease-out"
               />
-            )}
 
-            {chartConfig.macd.enabled && (
-              <>
+              {chartConfig.rsi.enabled && (
                 <Line
                   type="monotone"
-                  dataKey="macd"
-                  name="MACD"
-                  stroke="#4caf50"
+                  dataKey="rsi"
+                  name="RSI"
+                  stroke="#f44336"
                   strokeWidth={1}
                   animationDuration={500}
                   animationEasing="ease-out"
                 />
+              )}
+
+              {chartConfig.macd.enabled && (
+                <>
+                  <Line
+                    type="monotone"
+                    dataKey="macd"
+                    name="MACD"
+                    stroke="#ff9800" // changed to orange
+                    strokeWidth={1}
+                    animationDuration={500}
+                    animationEasing="ease-out"
+                  />
+                  <Line
+                    type="monotone"
+                    dataKey="macdSignal"
+                    name="MACD Signal"
+                    stroke="#9c27b0" // purple
+                    strokeWidth={1}
+                    animationDuration={500}
+                    animationEasing="ease-out"
+                  />
+                  <Area
+                    type="monotone"
+                    dataKey="macdHistogram"
+                    name="MACD Histogram"
+                    fill="#ff9800"
+                    fillOpacity={0.3}
+                    stroke="none"
+                  />
+                </>
+              )}
+
+              {chartConfig.bollingerBands.enabled && (
+                <>
+                  <Line
+                    type="monotone"
+                    dataKey="upperBand"
+                    name="Upper Band"
+                    stroke="#ff9800"
+                    strokeWidth={1}
+                    animationDuration={500}
+                    animationEasing="ease-out"
+                  />
+                  <Line
+                    type="monotone"
+                    dataKey="lowerBand"
+                    name="Lower Band"
+                    stroke="#ff9800"
+                    strokeWidth={1}
+                    animationDuration={500}
+                    animationEasing="ease-out"
+                  />
+                </>
+              )}
+
+              {chartConfig.adx.enabled && (
                 <Line
                   type="monotone"
-                  dataKey="macdSignal"
-                  name="MACD Signal"
-                  stroke="#9c27b0"
-                  strokeWidth={1}
+                  dataKey="adx"
+                  name="ADX"
+                  stroke={chartConfig.adx.color}
+                  strokeWidth={chartConfig.adx.lineWidth}
                   animationDuration={500}
                   animationEasing="ease-out"
                 />
-                <Area
-                  type="monotone"
-                  dataKey="macdHistogram"
-                  name="MACD Histogram"
-                  fill="#4caf50"
-                  fillOpacity={0.3}
-                  stroke="none"
-                />
-              </>
-            )}
+              )}
 
-            {chartConfig.bollingerBands.enabled && (
-              <>
+              {chartConfig.obv.enabled && (
                 <Line
                   type="monotone"
-                  dataKey="upperBand"
-                  name="Upper Band"
-                  stroke="#ff9800"
-                  strokeWidth={1}
+                  dataKey="obv"
+                  name="OBV"
+                  stroke={chartConfig.obv.color}
+                  strokeWidth={chartConfig.obv.lineWidth}
                   animationDuration={500}
                   animationEasing="ease-out"
                 />
+              )}
+
+              {chartConfig.vwap.enabled && (
                 <Line
                   type="monotone"
-                  dataKey="lowerBand"
-                  name="Lower Band"
-                  stroke="#ff9800"
-                  strokeWidth={1}
+                  dataKey="vwap"
+                  name="VWAP"
+                  stroke={chartConfig.vwap.color}
+                  strokeWidth={chartConfig.vwap.lineWidth}
                   animationDuration={500}
                   animationEasing="ease-out"
                 />
-              </>
-            )}
+              )}
 
-            {chartConfig.adx.enabled && (
-              <Line
-                type="monotone"
-                dataKey="adx"
-                name="ADX"
-                stroke={chartConfig.adx.color}
-                strokeWidth={chartConfig.adx.lineWidth}
-                animationDuration={500}
-                animationEasing="ease-out"
+              {chartConfig.atr.enabled && (
+                <Line
+                  type="monotone"
+                  dataKey="atr"
+                  name="ATR"
+                  stroke={chartConfig.atr.color}
+                  strokeWidth={chartConfig.atr.lineWidth}
+                  animationDuration={500}
+                  animationEasing="ease-out"
+                />
+              )}
+
+              {chartConfig.cci.enabled && (
+                <Line
+                  type="monotone"
+                  dataKey="cci"
+                  name="CCI"
+                  stroke={chartConfig.cci.color}
+                  strokeWidth={chartConfig.cci.lineWidth}
+                  animationDuration={500}
+                  animationEasing="ease-out"
+                />
+              )}
+
+              {chartConfig.stoch.enabled && (
+                <Line
+                  type="monotone"
+                  dataKey="stoch"
+                  name="Stochastic Oscillator"
+                  stroke={chartConfig.stoch.color}
+                  strokeWidth={chartConfig.stoch.lineWidth}
+                  animationDuration={500}
+                  animationEasing="ease-out"
+                />
+              )}
+
+              {chartConfig.roc.enabled && (
+                <Line
+                  type="monotone"
+                  dataKey="roc"
+                  name="ROC"
+                  stroke={chartConfig.roc.color}
+                  strokeWidth={chartConfig.roc.lineWidth}
+                  animationDuration={500}
+                  animationEasing="ease-out"
+                />
+              )}
+
+              {chartConfig.mfi.enabled && (
+                <Line
+                  type="monotone"
+                  dataKey="mfi"
+                  name="MFI"
+                  stroke={chartConfig.mfi.color}
+                  strokeWidth={chartConfig.mfi.lineWidth}
+                  animationDuration={500}
+                  animationEasing="ease-out"
+                />
+              )}
+
+              <XAxis
+                dataKey="timestamp"
+                tickFormatter={formatTimestamp}
+                angle={-45}
+                textAnchor="end"
+                type="number"
+                domain={xAxisDomain}
               />
-            )}
-
-            {chartConfig.obv.enabled && (
-              <Line
-                type="monotone"
-                dataKey="obv"
-                name="OBV"
-                stroke={chartConfig.obv.color}
-                strokeWidth={chartConfig.obv.lineWidth}
-                animationDuration={500}
-                animationEasing="ease-out"
+              <YAxis />
+              <Tooltip content={<CustomTooltip />} />
+              <Legend />
+              <Brush
+                dataKey="timestamp"
+                height={30}
+                stroke="#8884d8"
+                onChange={handleBrushDomainChange}
+                onEnded={handleBrushDomainChange}
               />
-            )}
-
-            {chartConfig.vwap.enabled && (
-              <Line
-                type="monotone"
-                dataKey="vwap"
-                name="VWAP"
-                stroke={chartConfig.vwap.color}
-                strokeWidth={chartConfig.vwap.lineWidth}
-                animationDuration={500}
-                animationEasing="ease-out"
-              />
-            )}
-
-            {chartConfig.atr.enabled && (
-              <Line
-                type="monotone"
-                dataKey="atr"
-                name="ATR"
-                stroke={chartConfig.atr.color}
-                strokeWidth={chartConfig.atr.lineWidth}
-                animationDuration={500}
-                animationEasing="ease-out"
-              />
-            )}
-
-            {chartConfig.cci.enabled && (
-              <Line
-                type="monotone"
-                dataKey="cci"
-                name="CCI"
-                stroke={chartConfig.cci.color}
-                strokeWidth={chartConfig.cci.lineWidth}
-                animationDuration={500}
-                animationEasing="ease-out"
-              />
-            )}
-
-            {chartConfig.stoch.enabled && (
-              <Line
-                type="monotone"
-                dataKey="stoch"
-                name="Stochastic Oscillator"
-                stroke={chartConfig.stoch.color}
-                strokeWidth={chartConfig.stoch.lineWidth}
-                animationDuration={500}
-                animationEasing="ease-out"
-              />
-            )}
-
-            {chartConfig.roc.enabled && (
-              <Line
-                type="monotone"
-                dataKey="roc"
-                name="ROC"
-                stroke={chartConfig.roc.color}
-                strokeWidth={chartConfig.roc.lineWidth}
-                animationDuration={500}
-                animationEasing="ease-out"
-              />
-            )}
-
-            {chartConfig.mfi.enabled && (
-              <Line
-                type="monotone"
-                dataKey="mfi"
-                name="MFI"
-                stroke={chartConfig.mfi.color}
-                strokeWidth={chartConfig.mfi.lineWidth}
-                animationDuration={500}
-                animationEasing="ease-out"
-              />
-            )}
-
-            <XAxis
-              dataKey="timestamp"
-              tickFormatter={formatTimestamp}
-              angle={-45}
-              textAnchor="end"
-              type="number"
-              domain={xAxisDomain}
-            />
-            <YAxis />
-            <Tooltip content={<CustomTooltip />} />
-            <Legend />
-            <Brush
-              dataKey="timestamp"
-              height={30}
-              stroke="#8884d8"
-              onChange={handleBrushDomainChange}
-              onEnded={handleBrushDomainChange}
-            />
-          </LineChart>
+            </LineChart>
+          )}
         </ResponsiveContainer>
       </Box>
     </Box>

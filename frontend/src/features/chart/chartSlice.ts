@@ -17,7 +17,7 @@ const initialState = {
     },
     macd: {
       enabled: false,
-      color: '#4caf50',
+      color: '#ff9800', // changed to orange
       lineWidth: 1,
     },
     bollingerBands: {
@@ -63,6 +63,11 @@ const initialState = {
     mfi: {
       enabled: false,
       color: '#8bc34a',
+      lineWidth: 1,
+    },
+    candlestick: {
+      enabled: false,
+      color: '#000000',
       lineWidth: 1,
     },
   } as ChartConfig,

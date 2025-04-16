@@ -50,9 +50,12 @@ export const coingeckoApi = {
       );
 
       // Convert CoinGecko data to our ChartData format
-      const data: ChartData[] = response.data.prices.map(([timestamp, price]: [number, number]) => ({
+      const data: ChartData[] = response.data.prices.map(([timestamp, price]: [number, number], index: number) => ({
         timestamp,
         price,
+        volume: response.data.total_volumes[index] ? response.data.total_volumes[index][1] : 0,
+        high: price, // fallback since high not provided
+        low: price,  // fallback since low not provided
         // We'll calculate these indicators later
         rsi: undefined,
         macd: undefined,

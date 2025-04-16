@@ -10,11 +10,21 @@ export interface ChartData {
   timestamp: number;
   price: number;
   volume?: number;
+  high?: number;
+  low?: number;
   rsi?: number;
   macd?: number;
   macdSignal?: number;
   upperBand?: number;
   lowerBand?: number;
+  adx?: number;
+  obv?: number;
+  vwap?: number;
+  atr?: number;
+  cci?: number;
+  stoch?: number;
+  roc?: number;
+  mfi?: number;
 }
 
 export interface IndicatorConfig {
@@ -35,6 +45,7 @@ export interface ChartConfig {
   stoch: IndicatorConfig;
   roc: IndicatorConfig;
   mfi: IndicatorConfig;
+  candlestick: IndicatorConfig;
 }
 
 export interface ChartProps {

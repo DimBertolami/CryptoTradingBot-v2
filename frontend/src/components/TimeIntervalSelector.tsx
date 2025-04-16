@@ -19,10 +19,13 @@ export type TimeInterval = '1m' | '5m' | '10m' | '30m' | '1h' | '1d' | '1y';
 const timeIntervals: { [key: string]: { label: string; value: TimeInterval } } = {
   '1m': { label: '1m', value: '1m' },
   '5m': { label: '5m', value: '5m' },
-  '10m': { label: '10m', value: '10m' },
   '30m': { label: '30m', value: '30m' },
   '1h': { label: '1h', value: '1h' },
   '1d': { label: '1d', value: '1d' },
+  '1w': { label: '1w', value: '1w' },
+  '1M': { label: '1M', value: '1M' },
+  '3M': { label: '3M', value: '3M' },
+  '6M': { label: '6M', value: '6M' },
   '1y': { label: '1y', value: '1y' },
 };
 
